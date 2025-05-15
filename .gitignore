@@ -1,1 +1,27 @@
 newsboat_cache.db
+
+venv
+
+# Ignore virtual environment
+venv/
+
+# Byte-compiled / cache files
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Logs and system files
+*.log
+.DS_Store
+
+# AI/data artifacts
+*.pt
+*.ckpt
+*.pth
+*.onnx
+models/
+checkpoints/
