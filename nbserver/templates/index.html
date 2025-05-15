@@ -20,7 +20,7 @@
 
         body {
             font-family: 'SF Mono', 'Consolas', 'Monaco', 'Andale Mono', 'Ubuntu Mono', monospace;
-            padding: 1em;
+            padding: 0;
             margin: 0;
             max-width: 100%;
             overflow-x: hidden;
@@ -33,14 +33,36 @@
             flex-direction: column;
             gap: 1em;
             margin-bottom: 20px;
-            padding: 0 1em;
+            padding: 0 0.5em;
+        }
+
+        .sticky-header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background-color: var(--bg-primary);
+            padding: 0;
+            margin: 0;
+            width: 100%;
+            left: 0;
+            right: 0;
         }
 
         @media (min-width: 768px) {
+            body {
+                padding: 0;
+            }
+
             .header {
-                flex-direction: row;
-                justify-content: space-between;
-                align-items: center;
+                padding: 0;
+            }
+
+            .action-bar {
+                padding: 16px 32px;
+            }
+
+            .items-container {
+                padding: 1em 2em;
             }
         }
 
@@ -49,10 +71,11 @@
             grid-template-columns: 1fr auto;
             gap: 16px;
             align-items: center;
-            background-color: var(--bg-secondary);
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin: 0 1em;
+            background-color: #1e1e1e;
+            padding: 16px 24px;
+            margin: 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border-color);
         }
 
         .counters {
@@ -91,7 +114,8 @@
             display: flex;
             flex-direction: column;
             gap: 1em;
-            padding: 0 1em;
+            padding: 1em;
+            margin-top: 0;
         }
 
         /* Mobile-first card layout */
@@ -120,15 +144,10 @@
 
         .item-author {
             font-size: 1.1em;
-            color: var(--text-primary);
+            color: var(--accent-blue);
             font-weight: 600;
             letter-spacing: -0.01em;
             flex: 1;
-        }
-
-        .item-author a {
-            display: inline;
-            width: fit-content;
         }
 
         .item-title {
@@ -136,6 +155,18 @@
             margin: 0.1em 0;
             line-height: 1.3;
             color: var(--text-primary);
+        }
+
+        /* Remove link styling from title and author */
+        .item-author,
+        .item-title {
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .item-author:hover,
+        .item-title:hover {
+            text-decoration: none;
         }
 
         .item-date {
@@ -501,27 +532,29 @@
 </head>
 
 <body>
-    <div class="header">
-        <h1>News Items</h1>
-        <div class="action-bar">
-            <div class="counters">
-                <div class="counter kept">
-                    <span>Kept:</span>
-                    <span class="counter-value" id="keptCount">0</span>
+    <div class="sticky-header">
+        <div class="header">
+
+            <div class="action-bar">
+                <div class="counters">
+                    <div class="counter kept">
+                        <span>Kept:</span>
+                        <span class="counter-value" id="keptCount">0</span>
+                    </div>
+                    <div class="counter to-delete">
+                        <span>To Delete:</span>
+                        <span class="counter-value" id="toDeleteCount">0</span>
+                    </div>
                 </div>
-                <div class="counter to-delete">
-                    <span>To Delete:</span>
-                    <span class="counter-value" id="toDeleteCount">0</span>
+                <div class="actions">
+                    <button class="clean-button" onclick="showClearConfirmation()">
+                        Clean All
+                    </button>
+                    <button class="refresh-button" onclick="loadItems()">
+                        <div class="refresh-icon"></div>
+                        Refresh
+                    </button>
                 </div>
-            </div>
-            <div class="actions">
-                <button class="clean-button" onclick="showClearConfirmation()">
-                    Clean All
-                </button>
-                <button class="refresh-button" onclick="loadItems()">
-                    <div class="refresh-icon"></div>
-                    Refresh
-                </button>
             </div>
         </div>
     </div>
@@ -530,29 +563,6 @@
     <div id="info" class="info"></div>
     <div class="items-container" id="itemsContainer">
         <!-- Items will be inserted here by JavaScript -->
-    </div>
-    <div class="header" style="margin-top: 20px;">
-        <div class="action-bar">
-            <div class="counters">
-                <div class="counter kept">
-                    <span>Kept:</span>
-                    <span class="counter-value" id="keptCountBottom">0</span>
-                </div>
-                <div class="counter to-delete">
-                    <span>To Delete:</span>
-                    <span class="counter-value" id="toDeleteCountBottom">0</span>
-                </div>
-            </div>
-            <div class="actions">
-                <button class="clean-button" onclick="showClearConfirmation()">
-                    Clean All
-                </button>
-                <button class="refresh-button" onclick="loadItems()">
-                    <div class="refresh-icon"></div>
-                    Refresh
-                </button>
-            </div>
-        </div>
     </div>
 
     <div id="clearConfirmationModal" class="modal-overlay">
@@ -630,8 +640,6 @@
 
             document.getElementById('keptCount').textContent = keptCount;
             document.getElementById('toDeleteCount').textContent = toDeleteCount;
-            document.getElementById('keptCountBottom').textContent = keptCount;
-            document.getElementById('toDeleteCountBottom').textContent = toDeleteCount;
         }
 
         function toggleKeep(itemId, element) {
@@ -654,7 +662,7 @@
         }
 
         function createItemCard(item) {
-            console.log('Creating card for item:', item); // Debug log
+            console.log('Creating card for item:', item);
             const isKept = keptItems.has(item.id);
             const date = new Date(item.pubDate);
             const formattedDate = date.toLocaleDateString('en-GB', {
@@ -663,20 +671,19 @@
                 year: 'numeric'
             });
 
-            // Debug log for specific fields
-            console.log('Channel name:', item.channel_name);
-            console.log('Channel URL:', item.channel_url);
-
             return `
                 <div class="item-card ${isKept ? 'kept' : ''}" 
                      data-id="${item.id}"
                      data-channel="${item.channel_name || ''}" 
                      data-title="${item.title}" 
                      data-date="${formattedDate}"
+                     data-url="${item.url}"
+                     data-channel-url="${item.channel_url}"
+                     data-feed-url="${item.feedurl}"
                      onclick="handleCardClick(event, ${item.id}, this)">
                     <div class="item-header">
                         <div class="item-author">
-                            <a href="${item.channel_url || '#'}" target="_blank" onclick="event.stopPropagation()">${item.channel_name || 'Loading...'}</a>
+                            ${item.channel_name || 'Loading...'}
                         </div>
                         <div class="item-actions">
                             <button class="keep-button ${isKept ? 'kept' : ''}" 
@@ -685,15 +692,15 @@
                             </button>
                         </div>
                     </div>
-                    <a href="${item.url}" target="_blank" class="item-title" onclick="event.stopPropagation()">${item.title}</a>
+                    <div class="item-title">${item.title}</div>
                     <div class="item-date">${formattedDate}</div>
                 </div>
             `;
         }
 
         function handleCardClick(event, itemId, element) {
-            // If the click was on a link or button, don't toggle
-            if (event.target.tagName === 'A' || event.target.tagName === 'BUTTON') {
+            // If the click was on a button, don't toggle
+            if (event.target.tagName === 'BUTTON') {
                 return;
             }
             toggleKeep(itemId, element);
@@ -861,9 +868,9 @@
 
             // Update menu items with current item data
             const itemId = item.dataset.id;
-            const itemUrl = item.querySelector('.item-title').href;
-            const channelUrl = item.querySelector('.item-author a').href;
-            const feedUrl = item.querySelector('.item-author a').href;
+            const itemUrl = item.dataset.url;
+            const channelUrl = item.dataset.channelUrl;
+            const feedUrl = item.dataset.feedUrl;
 
             document.getElementById('contextCopyLink').onclick = (e) => {
                 e.preventDefault();

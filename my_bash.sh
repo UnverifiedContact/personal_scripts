@@ -13,6 +13,7 @@ if [ -f "$HOME/IS_MOBILE" ]; then
     sv-enable sshd
     sv-enable httpd
 else
+	alias python=python3
 	xset b off # no beep
 	export TMP='/tmp'
 	export PATH="$HOME/.local/bin:$PATH" # for pipx binaries
@@ -127,6 +128,7 @@ ytz() {
         --match-filter '!is_live' \
         --match-filter 'duration<36000' \
         --embed-subs \
+        --trim-filenames 50 \
         --write-auto-subs \
         --progress \
         --newline \
@@ -135,6 +137,8 @@ ytz() {
         $force_overwrite \
         --exec 'touch {} && echo {} && sync' "$1" || echo "$1" >> ytdl_failure.txt
 }
+
+source $HOME/personal_scripts/ytfb.sh
 
 ytzs() {
     local selections=""
@@ -170,118 +174,6 @@ ytzs() {
         $archive_flag \
         $force_overwrite \
         --exec 'touch {} && echo {} && sync' "$1" || echo "$1" >> ytdl_failure.txt
-}
-
-ytzxxxx() {
-    local selections=""
-    selections+="bestvideo[height<=480][height>=480][vcodec!*=av01]+bestaudio[abr>=64]/best"
-    selections+="bestvideo[height<=720][height>=720][vcodec!*=av01]+bestaudio[abr>=64]/best"
-    selections+="worstvideo[height>=480][vcodec!*=av01]+(worstaudio[abr>=64]/bestaudio)"
-    selections+='/worst[height>=480][ext=mp4]'
-    selections+='/worst[height>=480]'
-    selections+='/best'
-
-    local progress_format="%(progress._percent_str)s ETA: %(progress._eta_str)s Speed: %(progress._speed_str)s Size: %(progress._total_bytes_str)s"
-    local archive_flag="--download-archive $HOME/yt-dlp/ytdl_success.txt"
-    local force_overwrite=""  # No force overwrite by default
-
-    [[ "$1" == "--force" ]] && { archive_flag=""; force_overwrite="--force-overwrites"; shift; }
-    [[ "$1" == "--max" ]] && { selections=""; shift; }
-
-    echo "$1"
-    $HOME/yt-dlp/yt-dlp.sh \
-        -f "$selections" \
-        --progress-template "[Downloading] %(info.uploader,info.channel)s - %(info.title)s | $progress_format" \
-        --add-metadata \
-        --embed-thumbnail \
-        --embed-chapters \
-        --sub-langs=en \
-        --match-filter '!is_live' \
-        --match-filter 'duration<36000' \
-        --embed-subs \
-        --write-auto-subs \
-        --progress \
-        --newline \
-        -o '%(uploader|30s)s - %(description|40s)s [%(id)s].%(ext)s' --match-filter 'extractor=facebook' \
-        -o '%(uploader,channel|40.40s)s - %(title|50.50s)s [%(id)s].%(ext)s' \
-        $archive_flag \
-        $force_overwrite \
-        --exec 'touch {} && echo {} && sync' "$1" || echo "$1" >> ytdl_failure.txt
-}
-
-ytz2222() {
-
-    local progress_format="%(progress._percent_str)s ETA: %(progress._eta_str)s Speed: %(progress._speed_str)s Size: %(progress._total_bytes_str)s"
-    local archive_flag="--download-archive $HOME/yt-dlp/ytdl_success.txt"
-    local selections="";
-    selections+="bestvideo[height<=720][height>=720][vcodec!*=av01]+bestaudio[abr>=64]/best";
-    selections+="bestvideo[height<=480][height>=480][vcodec!*=av01]+bestaudio[abr>=64]/best";
-    selections+="worstvideo[height>=480][vcodec!*=av01]+(worstaudio[abr>=64]/bestaudio)";
-    selections+='/worst[height>=480][ext=mp4]';
-    selections+='/worst[height>=480]';
-    selections+='/best';
-    
-    [[ "$1" == "--force" ]] && archive_flag="" && shift
-    [[ "$1" == "--max" ]] && selections="" && shift
-    echo "$1"
-    
-    $HOME/yt-dlp/yt-dlp.sh ${selections:+-f "$selections"} \
-        --progress-template "[Downloading] %(info.uploader,channel)s - %(info.title)s | $progress_format" \
-        --add-metadata \
-        --embed-thumbnail \
-        --embed-chapters \
-        --sub-langs=en \
-        --match-filter '!is_live' \
-        --match-filter 'duration<36000' \
-        --embed-subs \
-        --write-auto-subs \
-        --progress \
-        --newline \
-        -o '%(uploader|40.40s)s - %(description|50.50s)s [%(id)s].%(ext)s' --match-filter 'extractor=facebook' \
-        -o '%(uploader|40.40s)s - %(title|50.50s)s [%(id)s].%(ext)s'\
-        $archive_flag \
-        --exec 'touch {} && echo {} && sync' "$1" || echo "$1" >> ytdl_failure.txt
-}
-
-# --download-archive $HOME/yt-dlp/ytdl_success.txt \
-
-ytz22() {
-    echo $1
-    local progress_format="%(progress._percent_str)s ETA: %(progress._eta_str)s Speed: %(progress._speed_str)s Size: %(progress._total_bytes_str)s";
-    local selections="";
-    selections+="bestvideo[height<=720][height>=720][vcodec!*=av01]+bestaudio[abr>=64]/best";
-    selections+="bestvideo[height<=480][height>=480][vcodec!*=av01]+bestaudio[abr>=64]/best";
-    selections+="worstvideo[height>=480][vcodec!*=av01]+(worstaudio[abr>=64]/bestaudio)";
-    selections+='/worst[height>=480][ext=mp4]';
-    selections+='/worst[height>=480]';
-    selections+='/best';
-    
-    if [[ $1 == *"facebook.com"* ]]; then
-        outformat='fb_%(uploader|10.10s)s_%(id)s.%(ext)s'
-        outformat='%(uploader|40.40s)s - %(description|20.20s)s [%(id)s].%(ext)s'
-        thumbformat='fb_%(id)s.%(ext)s'
-    else
-        outformat='%(uploader|40.40s)s - %(title|50.50s)s [%(id)s].%(ext)s'
-        thumbformat='%(id)s.%(ext)s'
-    fi
-    
-    $HOME/yt-dlp/yt-dlp.sh -f $selections \
-    --progress-template "[Downloading] %(info.uploader,channel)s - %(info.title)s | $progress_format" \
-    --add-metadata \
-    --convert-thumbnails jpg \
-    --output-na-placeholder "" \
-    --paths "thumbnail:$thumbformat" \
-    --embed-thumbnail \
-    --embed-chapters \
-    --sub-langs=en \
-    --match-filter '!is_live' \
-    --match-filter 'duration<36000' \
-    --embed-subs \
-    --write-auto-subs \
-    --progress \
-    --newline \
-    -o "$outformat" \
-    --exec 'touch {} && echo {} && sync' $1 || echo $1 >> ytdl_failure.txt
 }
 
 ytz_old() {
@@ -466,3 +358,19 @@ alias pgo='docker-compose run --rm laracastdl php ./start.php -s "30-days-to-lea
 alias pg2='docker-compose run --rm laracastdl php start.php -s "inertia-2-unleashed" -e "12,15" -s "the-definition-series"'
 alias pqt='docker stop laracasts-downloader-laracastdl-run-7b6e0c6bbfe6'
 alias pqt='docker ps --filter "name=laracasts-downloader" -q | xargs -r docker stop'
+
+review_news() {  
+    ( echo > /dev/tcp/127.0.0.1/5001 ) >/dev/null 2>&1 && echo "Port already in use." && return 1 || echo "Port available...";
+    backup_newsboat_cache
+    # termux-open http://localhost:5001
+    am start -a android.intent.action.VIEW -d "http://localhost:5001" org.mozilla.firefox
+    python $HOME/personal_scripts/nbserver/api_server.py --db=$NEWSBOAT_DB_FILE
+}
+
+nbr() {
+    backup_newsboat_cache
+    echo "Scanning..."
+    newsboat -c $NEWSBOAT_DB_FILE -C $NEWSBOAT_CONFIG_FILEPATH -u $NEWSBOAT_URLS_FILE -x reload print-unread
+    termux-vibrate
+    termux-notification --content "NBServer Sync Complete" --vibrate 500,1000,200 --priority max
+}

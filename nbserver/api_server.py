@@ -70,7 +70,8 @@ def get_non_deleted_items():
                 rss_item
             INNER JOIN
                 rss_feed ON rss_item.feedurl = rss_feed.rssurl
-                WHERE deleted = 0;
+                WHERE deleted = 0
+            ORDER BY UPPER(channel_name) ASC;
         """)
         rows = cursor.fetchall()
 
