@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>News Items</title>
+    <style>
+        :root {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --border-color: #404040;
+            --accent-blue: #2196F3;
+            --accent-red: #f44336;
+            --accent-green: #4CAF50;
+            --hover-bg: #3d3d3d;
+        }
+
+        body {
+            font-family: 'SF Mono', 'Consolas', 'Monaco', 'Andale Mono', 'Ubuntu Mono', monospace;
+            padding: 1em;
+            margin: 0;
+            max-width: 100%;
+            overflow-x: hidden;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+        }
+
+        .header {
+            display: flex;
+            flex-direction: column;
+            gap: 1em;
+            margin-bottom: 20px;
+            padding: 0 1em;
+        }
+
+        @media (min-width: 768px) {
+            .header {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+            }
+        }
+
+        .action-bar {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 16px;
+            align-items: center;
+            background-color: var(--bg-secondary);
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin: 0 1em;
+        }
+
+        .counters {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .counter {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.95em;
+            color: var(--text-secondary);
+        }
+
+        .counter.kept {
+            color: var(--accent-green);
+        }
+
+        .counter.to-delete {
+            color: var(--accent-red);
+        }
+
+        .counter-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .items-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1em;
+            padding: 0 1em;
+        }
+
+        /* Mobile-first card layout */
+        .item-card {
+            background-color: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 0.8em;
+            display: flex;
+            flex-direction: column;
+            gap: 0.3em;
+            margin-bottom: 0.2em;
+            cursor: pointer;
+        }
+
+        .item-card.kept {
+            background-color: rgba(76, 175, 80, 0.1);
+        }
+
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1em;
+            margin-bottom: 0.1em;
+        }
+
+        .item-author {
+            font-size: 1.1em;
+            color: var(--text-primary);
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            flex: 1;
+        }
+
+        .item-author a {
+            display: inline;
+            width: fit-content;
+        }
+
+        .item-title {
+            font-size: 0.95em;
+            margin: 0.1em 0;
+            line-height: 1.3;
+            color: var(--text-primary);
+        }
+
+        .item-date {
+            font-size: 0.75em;
+            color: var(--text-secondary);
+            letter-spacing: 0.02em;
+            margin-top: 0.1em;
+        }
+
+        .item-actions {
+            display: flex;
+            align-items: center;
+        }
+
+        /* Desktop table layout */
+        @media (min-width: 768px) {
+            .items-container {
+                display: table;
+                width: 100%;
+                border-collapse: collapse;
+            }
+
+            .item-card {
+                display: table-row;
+                background: none;
+                padding: 0;
+                margin: 0;
+                gap: 0;
+            }
+
+            .item-card>* {
+                display: table-cell;
+                padding: 12px;
+                vertical-align: middle;
+                border-bottom: 1px solid var(--border-color);
+            }
+
+            .item-header {
+                display: none;
+            }
+
+            .item-author {
+                display: table-cell !important;
+                font-size: 1em;
+                font-weight: 600;
+                width: auto;
+            }
+
+            .item-author a {
+                display: inline;
+                width: fit-content;
+            }
+
+            .item-title {
+                font-size: 1em;
+                margin: 0;
+            }
+
+            .item-date {
+                font-size: 1em;
+            }
+
+            .item-actions {
+                display: table-cell;
+                text-align: left;
+                width: 120px;
+            }
+
+            .keep-button {
+                padding: 12px 20px;
+                font-size: 15px;
+                min-width: 100px;
+            }
+        }
+
+        .refresh-button,
+        .clean-button {
+            font-family: 'SF Mono', 'Consolas', 'Monaco', 'Andale Mono', 'Ubuntu Mono', monospace;
+            cursor: pointer;
+            color: var(--text-primary);
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+            min-width: 100px;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .refresh-button {
+            background-color: var(--accent-blue);
+        }
+
+        .refresh-button:hover {
+            background-color: #1976D2;
+            transform: translateY(-1px);
+        }
+
+        .clean-button {
+            background-color: var(--accent-red);
+        }
+
+        .clean-button:hover {
+            background-color: #d32f2f;
+            transform: translateY(-1px);
+        }
+
+        .refresh-button:active,
+        .clean-button:active {
+            transform: translateY(1px);
+        }
+
+        .refresh-icon {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--text-primary);
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .refreshing .refresh-icon {
+            display: inline-block;
+        }
+
+        .keep-button {
+            cursor: pointer;
+            background-color: #3d3d3d;
+            color: var(--text-primary);
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            min-width: 80px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .keep-button.kept {
+            background-color: var(--accent-green);
+            color: white;
+            box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+        }
+
+        .keep-button:hover {
+            background-color: #4a4a4a;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .keep-button.kept:hover {
+            background-color: #45a049;
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+        }
+
+        .keep-button:active {
+            transform: translateY(1px);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        a {
+            color: var(--accent-blue);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .error {
+            color: var(--accent-red);
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid var(--accent-red);
+            border-radius: 4px;
+            display: none;
+            background-color: rgba(244, 67, 54, 0.1);
+        }
+
+        .success {
+            color: var(--accent-green);
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid var(--accent-green);
+            border-radius: 4px;
+            display: none;
+            background-color: rgba(76, 175, 80, 0.1);
+        }
+
+        .info {
+            color: var(--text-secondary);
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid var(--text-secondary);
+            border-radius: 4px;
+            display: none;
+            background-color: rgba(160, 160, 160, 0.1);
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal {
+            background-color: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 20px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .modal-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: var(--text-primary);
+        }
+
+        .modal-message {
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+            line-height: 1.4;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .modal-button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .modal-button.no {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+        }
+
+        .modal-button.yes {
+            background-color: var(--accent-red);
+            color: white;
+        }
+
+        .modal-button:hover {
+            opacity: 0.9;
+        }
+
+        .modal-button:active {
+            transform: scale(0.98);
+        }
+
+        h1 {
+            font-size: 1.5em;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        @media (max-width: 640px) {
+            .action-bar {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            .counters {
+                justify-content: space-between;
+            }
+
+            .actions {
+                justify-content: flex-end;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>News Items</h1>
+        <div class="action-bar">
+            <div class="counters">
+                <div class="counter kept">
+                    <span>Kept:</span>
+                    <span class="counter-value" id="keptCount">0</span>
+                </div>
+                <div class="counter to-delete">
+                    <span>To Delete:</span>
+                    <span class="counter-value" id="toDeleteCount">0</span>
+                </div>
+            </div>
+            <div class="actions">
+                <button class="clean-button" onclick="showClearConfirmation()">
+                    Clean All
+                </button>
+                <button class="refresh-button" onclick="loadItems()">
+                    <div class="refresh-icon"></div>
+                    Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+    <div id="error" class="error"></div>
+    <div id="success" class="success"></div>
+    <div id="info" class="info"></div>
+    <div class="items-container" id="itemsContainer">
+        <!-- Items will be inserted here by JavaScript -->
+    </div>
+    <div class="header" style="margin-top: 20px;">
+        <div class="action-bar">
+            <div class="counters">
+                <div class="counter kept">
+                    <span>Kept:</span>
+                    <span class="counter-value" id="keptCountBottom">0</span>
+                </div>
+                <div class="counter to-delete">
+                    <span>To Delete:</span>
+                    <span class="counter-value" id="toDeleteCountBottom">0</span>
+                </div>
+            </div>
+            <div class="actions">
+                <button class="clean-button" onclick="showClearConfirmation()">
+                    Clean All
+                </button>
+                <button class="refresh-button" onclick="loadItems()">
+                    <div class="refresh-icon"></div>
+                    Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="clearConfirmationModal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-title">Confirm Deletion</div>
+            <div class="modal-message">
+                Are you sure you want to delete <span id="modalDeleteCount">0</span> items?
+                <span id="modalKeptCount">0</span> items will be kept.
+                This action cannot be undone.
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-button no" onclick="hideClearConfirmation()">No</button>
+                <button class="modal-button yes" onclick="confirmClearItems()">Yes</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:5001/api';
+        const keptItems = new Set();
+        let currentSort = {
+            column: null,
+            direction: 'asc'
+        };
+
+        function showMessage(message, type = 'info') {
+            const element = document.getElementById(type);
+            if (element) {
+                element.textContent = message;
+                element.style.display = 'block';
+                setTimeout(() => {
+                    element.style.display = 'none';
+                }, 3000);
+            }
+        }
+
+        function updateCounters() {
+            const totalItems = document.querySelectorAll('.item-card').length;
+            const keptCount = keptItems.size;
+            const toDeleteCount = totalItems - keptCount;
+
+            document.getElementById('keptCount').textContent = keptCount;
+            document.getElementById('toDeleteCount').textContent = toDeleteCount;
+            document.getElementById('keptCountBottom').textContent = keptCount;
+            document.getElementById('toDeleteCountBottom').textContent = toDeleteCount;
+        }
+
+        function toggleKeep(itemId, element) {
+            const isKept = keptItems.has(itemId);
+
+            if (isKept) {
+                keptItems.delete(itemId);
+                element.classList.remove('kept');
+                const button = element.querySelector('.keep-button');
+                button.classList.remove('kept');
+                button.textContent = 'Keep';
+            } else {
+                keptItems.add(itemId);
+                element.classList.add('kept');
+                const button = element.querySelector('.keep-button');
+                button.classList.add('kept');
+                button.textContent = 'Kept';
+            }
+            updateCounters();
+        }
+
+        function createItemCard(item) {
+            const isKept = keptItems.has(item.id);
+            const date = new Date(item.pubDate);
+            const formattedDate = date.toLocaleDateString('en-GB', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric'
+            });
+
+            return `
+                <div class="item-card ${isKept ? 'kept' : ''}" 
+                     data-id="${item.id}"
+                     data-author="${item.author || 'Unknown'}" 
+                     data-title="${item.title}" 
+                     data-date="${formattedDate}"
+                     onclick="handleCardClick(event, ${item.id}, this)">
+                    <div class="item-header">
+                        <div class="item-author">
+                            <a href="${item.feedurl}" target="_blank" onclick="event.stopPropagation()">${item.author || 'Unknown'}</a>
+                        </div>
+                        <div class="item-actions">
+                            <button class="keep-button ${isKept ? 'kept' : ''}" 
+                                    onclick="event.stopPropagation(); toggleKeep(${item.id}, this.closest('.item-card'))">
+                                ${isKept ? 'Kept' : 'Keep'}
+                            </button>
+                        </div>
+                    </div>
+                    <a href="${item.url}" target="_blank" class="item-title" onclick="event.stopPropagation()">${item.title}</a>
+                    <div class="item-date">${formattedDate}</div>
+                </div>
+            `;
+        }
+
+        function handleCardClick(event, itemId, element) {
+            // If the click was on a link or button, don't toggle
+            if (event.target.tagName === 'A' || event.target.tagName === 'BUTTON') {
+                return;
+            }
+            toggleKeep(itemId, element);
+        }
+
+        function sortItems(column) {
+            const container = document.getElementById('itemsContainer');
+            const items = Array.from(container.children);
+
+            items.sort((a, b) => {
+                let aValue = a.dataset[column];
+                let bValue = b.dataset[column];
+
+                if (column === 'date') {
+                    aValue = new Date(aValue);
+                    bValue = new Date(bValue);
+                } else {
+                    aValue = (aValue || '').toLowerCase();
+                    bValue = (bValue || '').toLowerCase();
+                }
+
+                if (aValue < bValue) return currentSort.direction === 'asc' ? -1 : 1;
+                if (aValue > bValue) return currentSort.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            items.forEach(item => container.appendChild(item));
+        }
+
+        function loadItems() {
+            const button = document.querySelector('.refresh-button');
+            button.classList.add('refreshing');
+
+            fetch(`${API_BASE_URL}/items`)
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('itemsContainer');
+                    if (data.status === 'success') {
+                        container.innerHTML = data.data.map(item => createItemCard(item)).join('');
+                        showMessage('Items refreshed successfully');
+                        updateCounters();
+                    } else {
+                        showMessage('Failed to load items', 'error');
+                    }
+                })
+                .catch(error => {
+                    showMessage('Error connecting to the server', 'error');
+                })
+                .finally(() => {
+                    button.classList.remove('refreshing');
+                });
+        }
+
+        function showClearConfirmation() {
+            const modal = document.getElementById('clearConfirmationModal');
+            const totalItems = document.querySelectorAll('.item-card').length;
+            const keptCount = keptItems.size;
+            const toDeleteCount = totalItems - keptCount;
+
+            document.getElementById('modalDeleteCount').textContent = toDeleteCount;
+            document.getElementById('modalKeptCount').textContent = keptCount;
+            modal.style.display = 'flex';
+        }
+
+        function hideClearConfirmation() {
+            const modal = document.getElementById('clearConfirmationModal');
+            modal.style.display = 'none';
+        }
+
+        function confirmClearItems() {
+            hideClearConfirmation();
+            clearNonKeptItems();
+        }
+
+        async function clearNonKeptItems() {
+            const items = document.querySelectorAll('.item-card');
+            const nonKeptIds = [];
+
+            console.log('Total items found:', items.length);
+
+            items.forEach(item => {
+                console.log('Item:', {
+                    id: item.dataset.id,
+                    classes: item.classList.toString(),
+                    isKept: item.classList.contains('kept')
+                });
+
+                if (!item.classList.contains('kept')) {
+                    const id = item.dataset.id;
+                    if (id) {
+                        nonKeptIds.push(parseInt(id));
+                    }
+                }
+            });
+
+            console.log('Non-kept item IDs:', nonKeptIds);
+
+            if (nonKeptIds.length === 0) {
+                showMessage('No items to clear', 'info');
+                return;
+            }
+
+            try {
+                console.log('Sending delete request for IDs:', nonKeptIds);
+                const response = await fetch('http://localhost:5001/api/items/batch-delete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ item_ids: nonKeptIds })
+                });
+
+                const data = await response.json();
+                console.log('Delete response:', data);
+
+                if (response.ok) {
+                    showMessage(`Successfully cleared ${nonKeptIds.length} items`, 'success');
+                    // Refresh the list to show updated items
+                    loadItems();
+                } else {
+                    showMessage(data.message || 'Failed to clear items', 'error');
+                }
+            } catch (error) {
+                console.error('Error during delete:', error);
+                showMessage('Error clearing items: ' + error.message, 'error');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', loadItems);
+    </script>
+</body>
+
+</html>
