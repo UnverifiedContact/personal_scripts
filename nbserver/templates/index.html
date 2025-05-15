@@ -436,6 +436,67 @@
                 justify-content: flex-end;
             }
         }
+
+        /* Context Menu Styles */
+        .context-menu {
+            display: none;
+            position: fixed;
+            background-color: var(--bg-secondary);
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            padding: 8px 0;
+            z-index: 1000;
+            min-width: 200px;
+        }
+
+        .context-menu.active {
+            display: block;
+        }
+
+        .context-menu-item {
+            padding: 12px 16px;
+            color: var(--text-primary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background-color 0.2s;
+        }
+
+        .context-menu-item:hover {
+            background-color: var(--hover-bg);
+        }
+
+        .context-menu-item a {
+            color: inherit;
+            text-decoration: none;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .context-menu-item i {
+            font-size: 16px;
+            width: 20px;
+            text-align: center;
+        }
+
+        .context-menu-item.delete {
+            background-color: var(--accent-red);
+            color: white;
+        }
+
+        .context-menu-item.delete:hover {
+            background-color: #d32f2f;
+        }
+
+        .context-menu-item.delete a {
+            color: white;
+        }
+
+        /* Add Font Awesome for icons */
+        @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css');
     </style>
 </head>
 
@@ -509,6 +570,40 @@
         </div>
     </div>
 
+    <!-- Context Menu -->
+    <div id="contextMenu" class="context-menu">
+        <div class="context-menu-item">
+            <a href="#" id="contextCopyLink">
+                <i class="fas fa-copy"></i>
+                Copy Link
+            </a>
+        </div>
+        <div class="context-menu-item">
+            <a href="#" id="contextOpenLink" target="_blank">
+                <i class="fas fa-external-link-alt"></i>
+                Open Link
+            </a>
+        </div>
+        <div class="context-menu-item">
+            <a href="#" id="contextOpenChannel" target="_blank">
+                <i class="fas fa-globe"></i>
+                Open Channel
+            </a>
+        </div>
+        <div class="context-menu-item">
+            <a href="#" id="contextOpenFeed" target="_blank">
+                <i class="fas fa-rss"></i>
+                Open Feed
+            </a>
+        </div>
+        <div class="context-menu-item delete">
+            <a href="#" id="contextDelete">
+                <i class="fas fa-trash"></i>
+                Delete
+            </a>
+        </div>
+    </div>
+
     <script>
         const API_BASE_URL = 'http://localhost:5001/api';
         const keptItems = new Set();
@@ -559,6 +654,7 @@
         }
 
         function createItemCard(item) {
+            console.log('Creating card for item:', item); // Debug log
             const isKept = keptItems.has(item.id);
             const date = new Date(item.pubDate);
             const formattedDate = date.toLocaleDateString('en-GB', {
@@ -567,16 +663,20 @@
                 year: 'numeric'
             });
 
+            // Debug log for specific fields
+            console.log('Channel name:', item.channel_name);
+            console.log('Channel URL:', item.channel_url);
+
             return `
                 <div class="item-card ${isKept ? 'kept' : ''}" 
                      data-id="${item.id}"
-                     data-author="${item.author || 'Unknown'}" 
+                     data-channel="${item.channel_name || ''}" 
                      data-title="${item.title}" 
                      data-date="${formattedDate}"
                      onclick="handleCardClick(event, ${item.id}, this)">
                     <div class="item-header">
                         <div class="item-author">
-                            <a href="${item.feedurl}" target="_blank" onclick="event.stopPropagation()">${item.author || 'Unknown'}</a>
+                            <a href="${item.channel_url || '#'}" target="_blank" onclick="event.stopPropagation()">${item.channel_name || 'Loading...'}</a>
                         </div>
                         <div class="item-actions">
                             <button class="keep-button ${isKept ? 'kept' : ''}" 
@@ -632,6 +732,7 @@
                 .then(data => {
                     const container = document.getElementById('itemsContainer');
                     if (data.status === 'success') {
+                        console.log('Received items:', data.data); // Debug log
                         container.innerHTML = data.data.map(item => createItemCard(item)).join('');
                         showMessage('Items refreshed successfully');
                         updateCounters();
@@ -723,6 +824,125 @@
         }
 
         document.addEventListener('DOMContentLoaded', loadItems);
+
+        // Context Menu Functionality
+        let longPressTimer;
+        let currentContextItem = null;
+        const contextMenu = document.getElementById('contextMenu');
+        const LONG_PRESS_DURATION = 500; // milliseconds
+
+        function showContextMenu(event, item) {
+            event.preventDefault();
+            currentContextItem = item;
+
+            // Position the context menu
+            const x = event.clientX || event.touches?.[0]?.clientX || 0;
+            const y = event.clientY || event.touches?.[0]?.clientY || 0;
+
+            // Ensure menu stays within viewport
+            const menuWidth = 200; // min-width from CSS
+            const menuHeight = 250; // approximate height
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+
+            let posX = x;
+            let posY = y;
+
+            if (x + menuWidth > viewportWidth) {
+                posX = viewportWidth - menuWidth;
+            }
+            if (y + menuHeight > viewportHeight) {
+                posY = viewportHeight - menuHeight;
+            }
+
+            contextMenu.style.left = `${posX}px`;
+            contextMenu.style.top = `${posY}px`;
+            contextMenu.classList.add('active');
+
+            // Update menu items with current item data
+            const itemId = item.dataset.id;
+            const itemUrl = item.querySelector('.item-title').href;
+            const channelUrl = item.querySelector('.item-author a').href;
+            const feedUrl = item.querySelector('.item-author a').href;
+
+            document.getElementById('contextCopyLink').onclick = (e) => {
+                e.preventDefault();
+                navigator.clipboard.writeText(itemUrl);
+                showMessage('Link copied to clipboard', 'success');
+                hideContextMenu();
+            };
+
+            document.getElementById('contextOpenLink').href = itemUrl;
+            document.getElementById('contextOpenChannel').href = channelUrl;
+            document.getElementById('contextOpenFeed').href = feedUrl;
+
+            document.getElementById('contextDelete').onclick = async (e) => {
+                e.preventDefault();
+                try {
+                    const response = await fetch(`${API_BASE_URL}/items/${itemId}`, {
+                        method: 'DELETE'
+                    });
+
+                    if (response.ok) {
+                        item.remove();
+                        updateCounters();
+                        showMessage('Item deleted successfully', 'success');
+                    } else {
+                        const data = await response.json();
+                        showMessage(data.message || 'Failed to delete item', 'error');
+                    }
+                } catch (error) {
+                    showMessage('Error deleting item: ' + error.message, 'error');
+                }
+                hideContextMenu();
+            };
+        }
+
+        function hideContextMenu() {
+            contextMenu.classList.remove('active');
+            currentContextItem = null;
+        }
+
+        // Handle right-click on item cards
+        document.addEventListener('contextmenu', (e) => {
+            const itemCard = e.target.closest('.item-card');
+            if (itemCard) {
+                e.preventDefault();
+                showContextMenu(e, itemCard);
+            }
+        });
+
+        // Handle long-press on mobile
+        document.addEventListener('touchstart', (e) => {
+            const itemCard = e.target.closest('.item-card');
+            if (!itemCard) return;
+
+            longPressTimer = setTimeout(() => {
+                showContextMenu(e, itemCard);
+            }, LONG_PRESS_DURATION);
+        });
+
+        document.addEventListener('touchend', () => {
+            clearTimeout(longPressTimer);
+        });
+
+        document.addEventListener('touchmove', () => {
+            clearTimeout(longPressTimer);
+        });
+
+        // Hide context menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!contextMenu.contains(e.target)) {
+                hideContextMenu();
+            }
+        });
+
+        // Hide context menu on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                hideContextMenu();
+            }
+        });
     </script>
 </body>
 

@@ -54,34 +54,34 @@ def get_non_deleted_items():
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT 
-                id,
-                author,
-                title,
-                url,
-                deleted,
-                unread,
-                pubDate,
-                content,
-                feedurl
-            FROM 
+            SELECT
+                rss_item.id,
+                rss_feed.title AS channel_name,
+                rss_feed.url AS channel_url,
+                rss_item.title,
+                rss_item.url,
+                rss_item.deleted,
+                rss_item.unread,
+                rss_item.pubDate,
+                rss_item.content,
+                rss_item.author,
+                rss_item.feedurl
+            FROM
                 rss_item
-            WHERE 
-                deleted = 0
-            ORDER BY 
-                author ASC
+            INNER JOIN
+                rss_feed ON rss_item.feedurl = rss_feed.rssurl
+                WHERE deleted = 0;
         """)
         rows = cursor.fetchall()
 
-        # Convert to list of dictionaries
         items = []
         for row in rows:
-            # Convert Unix timestamp to human readable date
             pub_date = datetime.fromtimestamp(row['pubDate']).strftime('%Y-%m-%d %H:%M:%S')
             
             items.append({
                 'id': row['id'],
-                'author': row['author'],
+                'channel_name': row['channel_name'],
+                'channel_url': row['channel_url'],
                 'title': row['title'],
                 'url': row['url'],
                 'deleted': row['deleted'],
