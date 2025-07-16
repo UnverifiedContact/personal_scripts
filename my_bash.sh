@@ -4,6 +4,7 @@ if [ -f "$HOME/IS_MOBILE" ]; then
 	export TMP=$HOME/tmp
 	[[ -z "${CARD_VIDS_PATH}" ]] && echo 'WARNING: CARD_VIDS_PATH is not set.';
 	alias ol="time rsync -av --progress --size-only . $CARD_VIDS_PATH"
+    alias nol="time rsync -av --progress --size-only . $CARD_NIGHT_PATH"
 	alias clean_landing='time rm --verbose *.mp4 && rm --verbose *.mkv && rm --verbose *.webm'
     alias clean_landing='extensions="mp4 mkv webm vtt part ytdl jpg webp srt mp3 avi"; time for ext in $extensions; do rm --verbose *."$ext"; done'
 	. `which env_parallel.bash`
@@ -87,6 +88,10 @@ emsub_bup() {
     ffmpeg -i "$1" -i "$2" -c copy -c:s mov_text -metadata:s:s:0 language=eng "$TMP/$1" && mv "$TMP/$1" "$1"; 
 };
 
+rmsub_all() {
+  ffmpeg -i "$1" -map 0:v -map 0:a? -c copy "$TMP/$1" && rsync --progress "$TMP/$1" "$1" && rm "$TMP/$1"
+}
+
 # for mkv
 emsub2() { 
     ffmpeg -i "$1" -c copy -sn "$TMP/$1" && mv "$TMP/$1" "$1";
@@ -124,15 +129,15 @@ ytz() {
         --add-metadata \
         --embed-thumbnail \
         --embed-chapters \
-        --sub-langs=en \
+        --sub-langs=en,en-orig,en-US,en-x-autogen \
         --match-filter '!is_live' \
         --match-filter 'duration<36000' \
         --embed-subs \
-        --trim-filenames 50 \
         --write-auto-subs \
         --progress \
         --newline \
-        -o '%(uploader|30.30s)s - [%(id)s].%(ext)s' \
+        -o '%(uploader,channel|40.40s)s - %(title)s [%(id)s].%(ext)s' \
+        -o '%(uploader|40.40s)s - %(description|50.50s)s [%(id)s].%(ext)s' --match-filter 'extractor=facebook' \
         $archive_flag \
         $force_overwrite \
         --exec 'touch {} && echo {} && sync' "$1" || echo "$1" >> ytdl_failure.txt
@@ -140,119 +145,8 @@ ytz() {
 
 source $HOME/personal_scripts/ytfb.sh
 
-ytzs() {
-    local selections=""
-    selections+="bestvideo[height<=480][height>=480][vcodec!*=av01]+bestaudio[abr>=64]/best"
-    selections+="bestvideo[height<=720][height>=720][vcodec!*=av01]+bestaudio[abr>=64]/best"
-    selections+="worstvideo[height>=480][vcodec!*=av01]+(worstaudio[abr>=64]/bestaudio)"
-    selections+='/worst[height>=480][ext=mp4]'
-    selections+='/worst[height>=480]'
-    selections+='/best'
-
-    local progress_format="%(progress._percent_str)s ETA: %(progress._eta_str)s Speed: %(progress._speed_str)s Size: %(progress._total_bytes_str)s"
-    local archive_flag="--download-archive $HOME/yt-dlp/ytdl_success.txt"
-    local force_overwrite=""  # No force overwrite by default
-
-    [[ "$1" == "--force" ]] && { archive_flag=""; force_overwrite="--force-overwrites"; shift; }
-    [[ "$1" == "--max" ]] && { selections="bestvideo+bestaudio/best"; shift; }
-
-    echo "$1"
-    $HOME/yt-dlp/yt-dlp.sh \
-        -f "$selections" \
-        --progress-template "[Downloading] %(info.uploader,info.channel)s - %(info.title)s | $progress_format" \
-        --add-metadata \
-        --embed-thumbnail \
-        --embed-chapters \
-        --sub-langs=en,de \
-        --match-filter '!is_live' \
-        --match-filter 'duration<36000' \
-        --embed-subs \
-        --write-auto-subs \
-        --progress \
-        --newline \
-        -o '%(uploader|30.30s)s - [%(id)s].%(ext)s' \
-        $archive_flag \
-        $force_overwrite \
-        --exec 'touch {} && echo {} && sync' "$1" || echo "$1" >> ytdl_failure.txt
-}
-
-ytz_old() {
-    echo $1
-	local progress_format="%(progress._percent_str)s ETA: %(progress._eta_str)s Speed: %(progress._speed_str)s Size: %(progress._total_bytes_str)s";
-	local selections="";
-    selections+="bestvideo[height<=720][height>=720][vcodec!*=av01]+bestaudio[abr>=64]/best";
-    selections+="bestvideo[height<=480][height>=480][vcodec!*=av01]+bestaudio[abr>=64]/best";
-	selections+="worstvideo[height>=480][vcodec!*=av01]+(worstaudio[abr>=64]/bestaudio)";
-	selections+='/worst[height>=480][ext=mp4]';
-	selections+='/worst[height>=480]';
-	selections+='/best';
-	
-		$HOME/yt-dlp/yt-dlp.sh -f $selections \
-	--progress-template "[Downloading] %(info.uploader,channel)s - %(info.title)s | $progress_format" \
-	--add-metadata \
-	--embed-thumbnail \
-	--embed-chapters \
-	--sub-langs=en \
-	--match-filter '!is_live' \
-	--match-filter 'duration<36000' \
-	--embed-subs \
-	--write-auto-subs \
-	--progress \
-	--newline \
-	--download-archive $HOME/yt-dlp/ytdl_success.txt \
-    -o '%(uploader|40.40s)s - %(title|50.50s)s [%(id)s].%(ext)s' \
-    --exec 'touch {} && echo {} && sync' $1 || echo $1 >> ytdl_failure.txt
-}
-
 ytmax() {
-    echo $1
-	local progress_format="%(progress._percent_str)s ETA: %(progress._eta_str)s Speed: %(progress._speed_str)s Size: %(progress._total_bytes_str)s";
-	
-		$HOME/yt-dlp/yt-dlp.sh \
-	--progress-template "[Downloading] %(info.uploader)s - %(info.title)s | $progress_format" \
-	--add-metadata \
-	--embed-thumbnail \
-	--embed-chapters \
-	--sub-langs=en \
-	--match-filter '!is_live' \
-	--match-filter 'duration<36000' \
-	--embed-subs \
-	--write-auto-subs \
-	--progress \
-	--newline \
-    -o '%(uploader,channel)s - %(title).200s [%(id)s].%(ext)s' \
-    --exec 'touch {} && echo {} && sync' $1 || echo $1 >> ytdl_failure.txt
-}
-
-ytz2() {
-    echo $1
-    local progress_format="%(progress._percent_str)s ETA: %(progress._eta_str)s Speed: %(progress._speed_str)s Size: %(progress._total_bytes_str)s"
-    local selections=""
-    selections+="worstvideo[height>=480][vcodec!*=av01]+(worstaudio[abr>=64]/bestaudio)"
-    selections+='/worst[height>=360][ext=mp4]'
-    selections+='/worst[height>=360]'
-    selections+='/best'
-    local download_archive_flag=()
-
-    if [[ $2 != "--force" ]]; then
-        download_archive_flag=(--download-archive "$HOME/yt-dlp/ytdl_success.txt")
-    fi
-
-    $HOME/yt-dlp/yt-dlp.sh -4 -f $selections \
-        --progress-template "[Downloading] %(info.uploader,channel)s - %(info.title)s | $progress_format" \
-        --add-metadata \
-        --embed-thumbnail \
-        --embed-chapters \
-        --sub-langs=en \
-        --match-filter '!is_live' \
-        --match-filter 'duration<36000' \
-        --embed-subs \
-        --write-auto-subs \
-        --progress \
-        --newline \
-        "${download_archive_flag[@]}" \
-        -o '%(uploader,channel)s - %(title)s [%(id)s].%(ext)s' \
-        --exec 'touch {} && echo {} && sync' $1 || echo $1 >> ytdl_failure.txt
+    ytz --max $1
 }
 
 alias docker-compose="docker compose"
@@ -278,7 +172,8 @@ alias ytp='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-fcZOlKWCZn6uP6S
 alias ytp7='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-fKGIfEc4IC9pY1ZC22Sa6Q'
 alias ytp8='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-ef0zZtbBhvLLYpGbS_8XsC'
 alias ytp9='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-cou3Jzg__BirgJMv75zgHx'
-alias ytpn='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-fT4AfNO0JPP4WVk2HZdNA6'
+alias ytpn='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-em3dpNukt7dVGQ0EHz5SAC'
+alias ytpr='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-fuoyzZ7XEvDiyaqRYLv7ca'
 
 alias sqlite='sqlite3'
 alias begin_install='apt-get install tmux git curl wget apache2 aria2 php ncdu htop python jq ffmpeg w3m lynx vim sqlite newsboat parallel axel progress rclone which iproute2 mediainfo rsync man man-pages'
@@ -346,18 +241,10 @@ alias gs='git status'
 alias gp='git push'
 alias gb='git branch'
 
-alias pull_music='rsync -avz -e "ssh -p 8022" moth@192.168.11.59:"/storage/C31A-2B7B/My Music/" .'
 alias dc='docker compose'
-#alias l2='ollama run llama2-uncensored'
 alias l2='ollama run llama2-uncensored-succinct'
-
 alias gemma='ollama run gemma2-succinct'
 alias gma='gemma'
-
-alias pgo='docker-compose run --rm laracastdl php ./start.php -s "30-days-to-learn-laravel-11"'
-alias pg2='docker-compose run --rm laracastdl php start.php -s "inertia-2-unleashed" -e "12,15" -s "the-definition-series"'
-alias pqt='docker stop laracasts-downloader-laracastdl-run-7b6e0c6bbfe6'
-alias pqt='docker ps --filter "name=laracasts-downloader" -q | xargs -r docker stop'
 
 review_news() {  
     ( echo > /dev/tcp/127.0.0.1/5001 ) >/dev/null 2>&1 && echo "Port already in use." && return 1 || echo "Port available...";
@@ -366,6 +253,7 @@ review_news() {
     am start -a android.intent.action.VIEW -d "http://localhost:5001" org.mozilla.firefox
     python $HOME/personal_scripts/nbserver/api_server.py --db=$NEWSBOAT_DB_FILE
 }
+alias nr='review_news'
 
 nbr() {
     backup_newsboat_cache
@@ -373,4 +261,88 @@ nbr() {
     newsboat -c $NEWSBOAT_DB_FILE -C $NEWSBOAT_CONFIG_FILEPATH -u $NEWSBOAT_URLS_FILE -x reload print-unread
     termux-vibrate
     termux-notification --content "NBServer Sync Complete" --vibrate 500,1000,200 --priority max
+}
+
+alias sdl='subliminal download -l en .'
+alias all_subs='yt-dlp --skip-download --write-subs --write-auto-subs'
+alias mi='mediainfo'
+
+# EXPERIMENTAL 
+alias mp4towebm='f(){ s=9961472; d=$(ffprobe -v 0 -of csv=p=0 -show_entries format=duration "$1"); vbr=$((s*8/(${d%.*}+1)-48000)); ffmpeg -y -i "$1" -c:v libvpx-vp9 -b:v ${vbr} -pass 1 -an -f null /dev/null && ffmpeg -i "$1" -c:v libvpx-vp9 -b:v ${vbr} -pass 2 -c:a libopus -b:a 48k "${1%.*}.webm"; rm -f ffmpeg2pass-0.log*; }; f'
+alias pull_music='rsync -avz -e "ssh -p 8022" moth@192.168.11.59:"/storage/C31A-2B7B/My Music/" .'
+
+# TEMP
+alias pgo='docker-compose run --rm laracastdl php ./start.php -s "30-days-to-learn-laravel-11"'
+alias pg2='docker-compose run --rm laracastdl php start.php -s "inertia-2-unleashed" -e "12,15" -s "the-definition-series"'
+alias pqt='docker stop laracasts-downloader-laracastdl-run-7b6e0c6bbfe6'
+alias pqt='docker ps --filter "name=laracasts-downloader" -q | xargs -r docker stop'
+
+# alias fixvtt='
+# fixvtt() {
+#   local file="$1"
+#   if [[ ! -f "$file" ]]; then
+#     echo "File not found: $file"
+#     return 1
+#   fi
+#   tmp="$(mktemp)"
+#   {
+#     echo "WEBVTT"
+#     echo ""
+#     sed "/^WEBVTT$/d; /^X-TIMESTAMP-MAP=/d; /^[[:space:]]*$/d; s/[[:space:]]\\{1,\\}/ /g" "$file"
+#   } > "$tmp" && mv "$tmp" "$file"
+# }'
+
+emsub_mkv() {
+    local input="$1"
+    local subs="$2"
+    local tmpdir="${TMPDIR:-/tmp}"
+    local base="${input##*/}"
+    local name="${base%.*}"
+    local output="$tmpdir/${name}.mkv"
+    local srt="$tmpdir/${name}.srt"
+    local dest="./${name}.mkv"
+
+    local lang=$(basename "$subs" | grep -oE '\.[a-z]{2}(\.srt|\.vtt|\.ass|\.sub)?$' | cut -d. -f2)
+    [[ -z "$lang" ]] && lang="eng"
+
+    ffmpeg -y -i "$subs" "$srt"
+    mkvmerge -o "$output" "$input" --language 0:$lang "$srt"
+    rsync --progress "$output" "$dest"
+    rm -f "$output" "$srt"
+}
+
+fix_vtt() {
+  # Usage: fix_vtt input.vtt [output.vtt]
+  local input="$1"
+  local output="$2"
+
+  if [[ -z "$input" ]]; then
+    echo "Usage: fix_vtt input.vtt [output.vtt]"
+    return 1
+  fi
+
+  if [[ ! -f "$input" ]]; then
+    echo "Input file does not exist!"
+    return 1
+  fi
+
+  local tmpfile
+  tmpfile="$(mktemp)"
+
+  {
+    echo "WEBVTT"
+    echo ""
+
+    sed '/^WEBVTT$/d' "$input" | \
+    sed '/^X-TIMESTAMP-MAP=/d' | \
+    sed -E 's/[[:space:]]+$//g'
+  } > "$tmpfile"
+
+  if [[ -z "$output" ]]; then
+    # Clobber the input file
+    mv "$tmpfile" "$input"
+  else
+    # Write to the specified output
+    mv "$tmpfile" "$output"
+  fi
 }

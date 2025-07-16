@@ -25,6 +25,7 @@ if(substr($info['path'], -1) == '/') {
 } else {
     if($downloader == 'aria2c') {
         $cmd = $downloader . ' -x16 -s16 --file-allocation=none --show-console-readout=true "' . $url . '"';
+        $cmd = 'stdbuf -o0 ' . $downloader . ' -x16 -s16 --file-allocation=none --continue=true --allow-overwrite=false --auto-file-renaming=false --show-console-readout=true "' . $url . '" 2>&1';
     } else {
         $cmd = $downloader . ' "' . $url . '"';
     }
@@ -35,19 +36,3 @@ echo $cmd . "\n";
 passthru($cmd);
 
 ?>
-~                                                                                                                                                                                                                  
-~                                                                                                                                                                                                                  
-~                                                                                                                                                                                                                  
-~                                                                                                                                                                                                                  
-~                                                                                                                                                                                                                  
-~                                                                                                                                                                                                                  
-~                                                                                                                                                                                                                  
-~                                                                                                                                                                                                                  
-~                                                                                                                                                                                                                  
-~                                                                                                                                                                                                                  
-~                                                                                                                                                                                                                  
-~                                                                                                                                                                                                                  
-~                                                                                                                                                                                                                  
-~                                                                                                                                                                                                                  
- 
-
