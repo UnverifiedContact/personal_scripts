@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <title>News Items</title>
     <style>
         :root {
@@ -642,28 +642,52 @@
             document.getElementById('toDeleteCount').textContent = toDeleteCount;
         }
 
-        function toggleKeep(itemId, element) {
-            const isKept = keptItems.has(itemId);
+        async function toggleKeep(itemId, element) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/items/${itemId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
 
-            if (isKept) {
-                keptItems.delete(itemId);
-                element.classList.remove('kept');
-                const button = element.querySelector('.keep-button');
-                button.classList.remove('kept');
-                button.textContent = 'Keep';
-            } else {
-                keptItems.add(itemId);
-                element.classList.add('kept');
-                const button = element.querySelector('.keep-button');
-                button.classList.add('kept');
-                button.textContent = 'Kept';
+                const data = await response.json();
+
+                if (response.ok) {
+                    const newUnread = data.data.unread;
+                    const isKept = newUnread === 0; // unread=0 means kept
+
+                    if (isKept) {
+                        keptItems.add(itemId);
+                        element.classList.add('kept');
+                        const button = element.querySelector('.keep-button');
+                        button.classList.add('kept');
+                        button.textContent = 'Kept';
+                    } else {
+                        keptItems.delete(itemId);
+                        element.classList.remove('kept');
+                        const button = element.querySelector('.keep-button');
+                        button.classList.remove('kept');
+                        button.textContent = 'Keep';
+                    }
+                    updateCounters();
+                } else {
+                    showMessage(data.message || 'Failed to update item status', 'error');
+                }
+            } catch (error) {
+                console.error('Error toggling keep status:', error);
+                showMessage('Error updating item status: ' + error.message, 'error');
             }
-            updateCounters();
         }
 
         function createItemCard(item) {
             console.log('Creating card for item:', item);
-            const isKept = keptItems.has(item.id);
+            // Set kept state based on unread flag: unread=0 means kept
+            const isKept = item.unread === 0;
+            if (isKept) {
+                keptItems.add(item.id);
+            }
+
             const date = new Date(item.pubDate);
             const formattedDate = date.toLocaleDateString('en-GB', {
                 day: '2-digit',
@@ -706,6 +730,17 @@
             toggleKeep(itemId, element);
         }
 
+        function scrollToLastKeptItem() {
+            const keptItems = document.querySelectorAll('.item-card.kept');
+            if (keptItems.length > 0) {
+                const lastKeptItem = keptItems[keptItems.length - 1];
+                lastKeptItem.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+            }
+        }
+
         function sortItems(column) {
             const container = document.getElementById('itemsContainer');
             const items = Array.from(container.children);
@@ -734,6 +769,9 @@
             const button = document.querySelector('.refresh-button');
             button.classList.add('refreshing');
 
+            // Clear the keptItems set before loading new items
+            keptItems.clear();
+
             fetch(`${API_BASE_URL}/items`)
                 .then(response => response.json())
                 .then(data => {
@@ -743,6 +781,11 @@
                         container.innerHTML = data.data.map(item => createItemCard(item)).join('');
                         showMessage('Items refreshed successfully');
                         updateCounters();
+
+                        // Scroll to last kept item after rendering
+                        setTimeout(() => {
+                            scrollToLastKeptItem();
+                        }, 100);
                     } else {
                         showMessage('Failed to load items', 'error');
                     }
@@ -949,6 +992,30 @@
             if (e.key === 'Escape') {
                 hideContextMenu();
             }
+        });
+
+        // Hide context menu when scrolling
+        document.addEventListener('scroll', () => {
+            hideContextMenu();
+        });
+
+        // Prevent pinch-to-zoom and other touch-based zooming
+        document.addEventListener('touchstart', (e) => {
+            if (e.touches.length > 1) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        document.addEventListener('gesturestart', (e) => {
+            e.preventDefault();
+        });
+
+        document.addEventListener('gesturechange', (e) => {
+            e.preventDefault();
+        });
+
+        document.addEventListener('gestureend', (e) => {
+            e.preventDefault();
         });
     </script>
 </body>

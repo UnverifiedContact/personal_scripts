@@ -180,6 +180,33 @@ def mark_item_as_deleted(item_id):
         print(f"Error in mark_item_as_deleted: {str(e)}")
         return False
 
+def toggle_item_unread(item_id):
+    """Toggle the unread flag for an item in the database, simplified."""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+
+        # Toggle unread: unread = 1 -> 0, unread = 0 -> 1
+        cursor.execute("""
+            UPDATE rss_item
+            SET unread = CASE unread WHEN 0 THEN 1 ELSE 0 END
+            WHERE id = ? AND deleted = 0
+        """, (item_id,))
+        
+        success = cursor.rowcount > 0
+        conn.commit()
+        
+        if not success:
+            return None
+
+        # Get the new unread value
+        cursor.execute("SELECT unread FROM rss_item WHERE id = ?", (item_id,))
+        row = cursor.fetchone()
+        return row['unread'] if row else None
+    except Exception as e:
+        print(f"Error in toggle_item_unread: {str(e)}")
+        return None
+
 def handle_get_item(item_id):
     """Handle GET request for a single item."""
     item = get_item_by_id(item_id)
@@ -206,7 +233,21 @@ def handle_delete_item(item_id):
         'message': 'Item not found or already deleted'
     }), 404
 
-@app.route('/api/items/<int:item_id>', methods=['GET', 'DELETE', 'OPTIONS'])
+def handle_toggle_unread(item_id):
+    """Handle POST request to toggle unread status for a single item."""
+    new_unread = toggle_item_unread(item_id)
+    if new_unread is not None:
+        return jsonify({
+            'status': 'success',
+            'message': 'Unread status updated successfully',
+            'data': {'unread': new_unread}
+        })
+    return jsonify({
+        'status': 'error',
+        'message': 'Item not found or failed to update'
+    }), 404
+
+@app.route('/api/items/<int:item_id>', methods=['GET', 'DELETE', 'POST', 'OPTIONS'])
 def handle_item(item_id):
     """Route handler that delegates to the appropriate method handler."""
     if request.method == 'OPTIONS':
@@ -214,7 +255,8 @@ def handle_item(item_id):
 
     method_handlers = {
         'GET': handle_get_item,
-        'DELETE': handle_delete_item
+        'DELETE': handle_delete_item,
+        'POST': handle_toggle_unread
     }
     
     handler = method_handlers.get(request.method)
