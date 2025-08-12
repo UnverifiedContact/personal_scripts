@@ -426,7 +426,7 @@ def get_dearrow_batch_info():
         
         # Process in parallel with reasonable concurrency
         # Each individual request has 5s timeout, but batch can take up to 1 minute total
-        print(f"Starting batch processing of {len(video_ids)} video IDs...")
+        #print(f"Starting batch processing of {len(video_ids)} video IDs...")
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             future_to_id = {
                 executor.submit(http_get_dearrow_video_info, vid, session): vid 
@@ -453,7 +453,7 @@ def get_dearrow_batch_info():
                     print(f"Error processing video {video_id}: {e}")
                     continue
         
-        print(f"Batch processing complete. Successfully processed {len(results)}/{len(video_ids)} videos.")
+       #print(f"Batch processing complete. Successfully processed {len(results)}/{len(video_ids)} videos.")
         return jsonify({
             'status': 'success',
             'data': results,

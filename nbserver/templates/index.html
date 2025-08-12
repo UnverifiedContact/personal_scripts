@@ -749,7 +749,6 @@
         }
 
         function createItemCard(item) {
-            console.log('Creating card for item:', item);
             // Set kept state based on unread flag: unread=0 means kept
             const isKept = item.unread === 0;
             if (isKept) {
@@ -850,7 +849,6 @@
                 .then(data => {
                     const container = document.getElementById('itemsContainer');
                     if (data.status === 'success') {
-                        console.log('Received items:', data.data); // Debug log
                         container.innerHTML = data.data.map(item => createItemCard(item)).join('');
                         showMessage('Items refreshed successfully');
                         updateCounters();
@@ -964,6 +962,7 @@
             });
 
             console.log(`Found ${videoIds.length} YouTube videos to process`);
+            console.log(videoIds);
             return videoIds;
         }
 
