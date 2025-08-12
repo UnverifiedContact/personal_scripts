@@ -1,10 +1,14 @@
 import sqlite3
+from urllib.parse import parse_qs, urlparse
 from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
 from datetime import datetime
 import os
 import argparse
 import threading
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description='Newsboat API Server')
@@ -104,6 +108,7 @@ def get_items():
         
     try:
         items = get_non_deleted_items()
+        items = process_items(items)
         return jsonify({
             'status': 'success',
             'data': items
@@ -330,6 +335,73 @@ def handle_batch_delete():
         'status': 'error',
         'message': 'Failed to delete items'
     }), 500
+
+# business logic
+def process_items(items):
+    """Process items through business logic."""
+    # Get HTTP session once for all items
+    session = initialize_http_session()
+    
+    for item in items:
+        url = item['url']
+        print(url)
+        youtube_video_id = extract_youtube_video_id(url)
+        print(youtube_video_id)
+        if youtube_video_id is None: continue
+        
+        dearrow_info = http_get_dearrow_video_info(youtube_video_id, session)
+        if dearrow_info is None: continue
+        item['dearrow_info'] = dearrow_info
+        item['original_title'] = item['title']
+
+        try:
+            item['title'] = dearrow_info['titles'][0]['title']
+        except (KeyError, IndexError, TypeError):
+            continue
+
+        print(item)
+        
+    print('Finished processing items...')
+    return items
+
+def extract_youtube_video_id(url):
+    parsed = urlparse(url)
+    
+    if parsed.hostname in ['www.youtube.com', 'youtube.com', 'm.youtube.com']:
+        # Try to get ID from ?v=VIDEO_ID
+        qs = parse_qs(parsed.query)
+        if 'v' in qs:
+            return qs['v'][0]
+        # Otherwise, get last part of path if it's embed or v
+        parts = parsed.path.split('/')
+        if parts[-2] in ['embed', 'v']:
+            return parts[-1]
+    
+    if parsed.hostname == 'youtu.be':
+        return parsed.path.lstrip('/')
+    
+    return None
+
+def http_get_dearrow_video_info(video_id, session):
+    """Get the video info from Dearrow using the provided session."""
+    url = f'https://sponsor.ajay.app/api/branding?videoID={video_id}'
+    return http_fetch_json(session, url)
+
+def initialize_http_session():
+    session = requests.Session()
+    adapter = HTTPAdapter(pool_connections=50, pool_maxsize=50)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    return session
+
+def http_fetch_json(session, url, timeout=5):
+    try:
+        response = session.get(url, headers={'Connection': 'keep-alive'}, timeout=timeout)
+        response.raise_for_status()
+        return response.json()
+    except (requests.RequestException, ValueError):
+        return None
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)  # Using port 5001 to avoid conflict with the original server 
