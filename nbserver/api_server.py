@@ -9,6 +9,7 @@ import threading
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+import concurrent.futures
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description='Newsboat API Server')
@@ -407,6 +408,65 @@ def http_fetch_json(session, url, timeout=5):
     except (requests.RequestException, ValueError):
         return None
 
+@app.route('/api/dearrow/batch', methods=['POST', 'OPTIONS'])
+def get_dearrow_batch_info():
+    """Process multiple YouTube video IDs in batch."""
+    if request.method == 'OPTIONS':
+        return '', 200
+        
+    try:
+        data = request.get_json()
+        video_ids = data.get('video_ids', [])
+        
+        if not video_ids:
+            return jsonify({'status': 'error', 'message': 'No video IDs provided'}), 400
+            
+        results = {}
+        session = initialize_http_session()
+        
+        # Process in parallel with reasonable concurrency
+        # Each individual request has 5s timeout, but batch can take up to 1 minute total
+        print(f"Starting batch processing of {len(video_ids)} video IDs...")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_id = {
+                executor.submit(http_get_dearrow_video_info, vid, session): vid 
+                for vid in video_ids
+            }
+            
+            # Wait for all futures to complete with 60 second total timeout
+            completed = 0
+            for future in concurrent.futures.as_completed(future_to_id, timeout=60):
+                video_id = future_to_id[future]
+                completed += 1
+                
+                # Log progress every 50 items
+                if completed % 50 == 0:
+                    print(f"Processed {completed}/{len(video_ids)} videos...")
+                
+                try:
+                    result = future.result()
+                    if result:
+                        results[video_id] = result
+                    # If no result, just skip it (silent failure as requested)
+                except Exception as e:
+                    # Log error but continue processing other videos
+                    print(f"Error processing video {video_id}: {e}")
+                    continue
+        
+        print(f"Batch processing complete. Successfully processed {len(results)}/{len(video_ids)} videos.")
+        return jsonify({
+            'status': 'success',
+            'data': results,
+            'processed': len(video_ids),
+            'successful': len(results)
+        })
+        
+    except concurrent.futures.TimeoutError:
+        print("Batch processing timed out after 60 seconds")
+        return jsonify({'status': 'error', 'message': 'Batch processing timed out'}), 408
+    except Exception as e:
+        print(f"Error in batch processing: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)  # Using port 5001 to avoid conflict with the original server 

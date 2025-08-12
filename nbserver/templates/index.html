@@ -528,6 +528,33 @@
 
         /* Add Font Awesome for icons */
         @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css');
+
+        .dearrow-button.processing {
+            background-color: #666;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .dearrow-button.processing:hover {
+            transform: none;
+            background-color: #666;
+        }
+
+        .dearrow-button.processing:not([disabled]) {
+            background-color: #f44336;
+            cursor: pointer;
+            opacity: 1;
+        }
+
+        .dearrow-button.processing:not([disabled]):hover {
+            background-color: #d32f2f;
+            transform: translateY(-1px);
+        }
+
+        .item-title.dearrow-updated {
+            color: #4CAF50;
+            /* Green color for Dearrow titles */
+        }
     </style>
 </head>
 
@@ -606,6 +633,12 @@
                 Open Feed
             </a>
         </div>
+        <div class="context-menu-item" id="contextToggleTitle" style="display: none;">
+            <a href="#" id="contextToggleTitleLink">
+                <i class="fas fa-exchange-alt"></i>
+                <span id="toggleTitleText">Show original title</span>
+            </a>
+        </div>
         <div class="context-menu-item delete">
             <a href="#" id="contextDelete">
                 <i class="fas fa-trash"></i>
@@ -680,6 +713,41 @@
             }
         }
 
+        // YouTube ID detection functions
+        function extractYouTubeVideoId(url) {
+            try {
+                const urlObj = new URL(url);
+
+                if (urlObj.hostname.includes('youtube.com')) {
+                    // Handle youtube.com URLs
+                    if (urlObj.searchParams.has('v')) {
+                        return urlObj.searchParams.get('v');
+                    }
+                    // Handle embed URLs
+                    const pathParts = urlObj.pathname.split('/');
+                    if (pathParts[1] === 'embed' || pathParts[1] === 'v') {
+                        return pathParts[2];
+                    }
+                } else if (urlObj.hostname === 'youtu.be') {
+                    // Handle youtu.be URLs
+                    return urlObj.pathname.slice(1);
+                }
+
+                return null;
+            } catch (error) {
+                console.error('Error parsing URL:', error);
+                return null;
+            }
+        }
+
+        function isYouTubeUrl(url) {
+            return extractYouTubeVideoId(url) !== null;
+        }
+
+        function getYouTubeIdForCard(url) {
+            return isYouTubeUrl(url) ? extractYouTubeVideoId(url) : '';
+        }
+
         function createItemCard(item) {
             console.log('Creating card for item:', item);
             // Set kept state based on unread flag: unread=0 means kept
@@ -695,11 +763,16 @@
                 year: 'numeric'
             });
 
+            // Get YouTube ID if this is a YouTube link
+            const youtubeId = getYouTubeIdForCard(item.url);
+
             return `
                 <div class="item-card ${isKept ? 'kept' : ''}" 
                      data-id="${item.id}"
+                     data-youtube-id="${youtubeId}"
                      data-channel="${item.channel_name || ''}" 
                      data-title="${item.title}" 
+                     data-original-title="${item.title}"
                      data-date="${formattedDate}"
                      data-url="${item.url}"
                      data-channel-url="${item.channel_url}"
@@ -786,6 +859,11 @@
                         setTimeout(() => {
                             scrollToLastKeptItem();
                         }, 100);
+
+                        // Auto-trigger Dearrow processing after page load
+                        setTimeout(() => {
+                            processDearrowBatch();
+                        }, 500);
                     } else {
                         showMessage('Failed to load items', 'error');
                     }
@@ -873,6 +951,88 @@
             }
         }
 
+        // Dearrow batch processing functions
+        function collectYouTubeIds() {
+            const items = document.querySelectorAll('.item-card');
+            const videoIds = [];
+
+            items.forEach(item => {
+                const youtubeId = item.dataset.youtubeId;
+                if (youtubeId && youtubeId.trim() !== '') {
+                    videoIds.push(youtubeId);
+                }
+            });
+
+            console.log(`Found ${videoIds.length} YouTube videos to process`);
+            return videoIds;
+        }
+
+        async function processDearrowBatch() {
+            const videoIds = collectYouTubeIds();
+
+            if (videoIds.length === 0) {
+                console.log('No YouTube videos found to process');
+                return;
+            }
+
+            try {
+                console.log(`Starting batch processing of ${videoIds.length} videos...`);
+                const response = await fetch(`${API_BASE_URL}/dearrow/batch`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ video_ids: videoIds })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                console.log('Batch processing response:', data);
+
+                if (data.status === 'success' && data.data) {
+                    updateTitlesFromBatch(data.data);
+                    const updatedCount = Object.keys(data.data).filter(id =>
+                        data.data[id] && data.data[id].titles && data.data[id].titles.length > 0
+                    ).length;
+
+                    if (updatedCount > 0) {
+                        showMessage(`Updated ${updatedCount} clickbait titles`, 'success');
+                    }
+                }
+            } catch (error) {
+                console.error('Error in batch processing:', error);
+                showMessage('Failed to process Dearrow titles', 'error');
+            }
+        }
+
+        function updateTitlesFromBatch(batchData) {
+            let updatedCount = 0;
+
+            Object.entries(batchData).forEach(([videoId, dearrowInfo]) => {
+                if (dearrowInfo && dearrowInfo.titles && dearrowInfo.titles.length > 0) {
+                    // Find the item with this YouTube ID
+                    const item = document.querySelector(`[data-youtube-id="${videoId}"]`);
+                    if (item) {
+                        const titleElement = item.querySelector('.item-title');
+                        const originalTitle = item.dataset.title;
+                        const dearrowTitle = dearrowInfo.titles[0].title;
+
+                        // Update the title
+                        titleElement.textContent = dearrowTitle;
+                        item.dataset.dearrowTitle = dearrowTitle;
+
+                        // Add visual indicator (change color)
+                        titleElement.classList.add('dearrow-updated');
+
+                        updatedCount++;
+                    }
+                }
+            });
+
+            console.log(`Updated ${updatedCount} titles from batch response`);
+        }
+
         document.addEventListener('DOMContentLoaded', loadItems);
 
         // Context Menu Functionality
@@ -914,6 +1074,41 @@
             const itemUrl = item.dataset.url;
             const channelUrl = item.dataset.channelUrl;
             const feedUrl = item.dataset.feedUrl;
+
+            // Show/hide toggle title option based on whether title was updated by Dearrow
+            const toggleTitleOption = document.getElementById('contextToggleTitle');
+            const toggleTitleText = document.getElementById('toggleTitleText');
+            const hasDearrowTitle = item.dataset.dearrowTitle;
+            const isShowingDearrow = item.querySelector('.item-title').classList.contains('dearrow-updated');
+
+            if (hasDearrowTitle) {
+                toggleTitleOption.style.display = 'block';
+                toggleTitleText.textContent = isShowingDearrow ? 'Original Title' : 'Clean Title';
+            } else {
+                toggleTitleOption.style.display = 'none';
+            }
+
+            // Handle toggle title functionality
+            if (hasDearrowTitle) {
+                document.getElementById('contextToggleTitleLink').onclick = (e) => {
+                    e.preventDefault();
+                    const titleElement = item.querySelector('.item-title');
+
+                    if (isShowingDearrow) {
+                        // Switch to original title
+                        titleElement.textContent = item.dataset.originalTitle;
+                        titleElement.classList.remove('dearrow-updated');
+                        titleElement.title = '';
+                    } else {
+                        // Switch to Dearrow title
+                        titleElement.textContent = item.dataset.dearrowTitle;
+                        titleElement.classList.add('dearrow-updated');
+                        titleElement.title = `Original: ${item.dataset.originalTitle}`;
+                    }
+
+                    hideContextMenu();
+                };
+            }
 
             document.getElementById('contextCopyLink').onclick = (e) => {
                 e.preventDefault();
