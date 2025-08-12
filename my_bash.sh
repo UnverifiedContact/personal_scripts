@@ -275,7 +275,8 @@ review_news() {
 
 review_news() {
     local port=5001
-    python "$HOME/personal_scripts/nbserver/api_server.py" --db="$NEWSBOAT_DB_FILE" & sleep 1;
+    python "$HOME/personal_scripts/nbserver/api_server.py" --db="$NEWSBOAT_DB_FILE";
+    sleep 1;
     am start -a android.intent.action.VIEW -d "http://localhost:$port" org.mozilla.firefox
 }
 
