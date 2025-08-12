@@ -336,8 +336,13 @@ def handle_batch_delete():
         'message': 'Failed to delete items'
     }), 500
 
-# business logic
+
 def process_items(items):
+    #items = process_dearrow(items)
+    return items
+
+# business logic
+def process_dearrow(items):
     """Process items through business logic."""
     # Get HTTP session once for all items
     session = initialize_http_session()
