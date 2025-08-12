@@ -108,26 +108,34 @@ scream() {
 
 ytz() {
     local selections=""
-    selections+="bestvideo[height<=480][height>=480][vcodec!*=av01]+bestaudio[abr>=64]/best"
-    selections+="bestvideo[height<=720][height>=720][vcodec!*=av01]+bestaudio[abr>=64]/best"
-    selections+="worstvideo[height>=480][vcodec!*=av01]+(worstaudio[abr>=64]/bestaudio)"
-    selections+='/worst[height>=480][ext=mp4]'
-    selections+='/worst[height>=480]'
-    selections+='/best'
+    selections+="hls-221/hls-222/hls-223/hls-224/hls-225/hls-226/hls-227/hls-228/hls-229/hls-22?/hls-21?/" # rumble mp4 640x360
+    # selections+="bestvideo[height<=480][height>=480][vcodec!*=av01]+bestaudio[abr>=64]/"
+    # selections+="bestvideo[height<=720][height>=720][vcodec!*=av01]+bestaudio[abr>=64]/"
+    # selections+="worstvideo[height>=480][vcodec!*=av01]+(worstaudio[abr>=64]/bestaudio)/"
+    # selections+="worst[height>=480][ext=mp4]/"
+    # selections+="worst[height>=480]/"
+    # selections+="best"
+    selections+="bestvideo[height<=480][height>=480][vcodec!*=av01]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64])/"
+    selections+="bestvideo[height<=720][height>=720][vcodec!*=av01]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64])/"
+    selections+="worstvideo[height>=480][vcodec!*=av01]+((worstaudio[abr>=64][language^=en]/bestaudio[language^=en])/(worstaudio[abr>=64]/bestaudio))/"
+    selections+="worst[height>=480][ext=mp4]/" # this line is necessary else we get fragmented formats which are gay
+    selections+="worst[height>=480]/"
+    selections+="best"
 
     local progress_format="%(progress._percent_str)s ETA: %(progress._eta_str)s Speed: %(progress._speed_str)s Size: %(progress._total_bytes_str)s"
     local archive_flag="--download-archive $HOME/yt-dlp/ytdl_success.txt"
     local force_overwrite=""  # No force overwrite by default
 
-    [[ "$1" == "--force" ]] && { archive_flag=""; force_overwrite="--force-overwrites"; shift; }
-    [[ "$1" == "--max" ]] && { selections="bestvideo+bestaudio/best"; shift; }
+    [[ " $* " == *" --720 "* ]] && selections="bestvideo[height<=720][vcodec!*=av01]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64])/$selections"
+    [[ " $* " == *" --1080 "* ]] && selections="bestvideo[height<=1080][vcodec!*=av01]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64])/$selections"
+    [[ " $* " == *" --force "* ]] && { archive_flag=""; force_overwrite="--force-overwrites"; }
+    [[ " $* " == *" --max "* ]] && { selections="bestvideo+bestaudio/best"; }
 
-    echo "$1"
+    echo "${!#}"
     $HOME/yt-dlp/yt-dlp.sh \
         -f "$selections" \
         --progress-template "[Downloading] %(info.uploader,info.channel)s - %(info.title)s | $progress_format" \
         --add-metadata \
-        --embed-thumbnail \
         --embed-chapters \
         --sub-langs=en,en-orig,en-US,en-x-autogen \
         --match-filter '!is_live' \
@@ -136,13 +144,16 @@ ytz() {
         --write-auto-subs \
         --progress \
         --newline \
+        --merge-output-format mkv \
+        --sponsorblock-chapter all \
+	      --use-postprocessor 'DeArrow:when=pre_process' \
         -o '%(uploader,channel|40.40s)s - %(title)s [%(id)s].%(ext)s' \
-        -o '%(uploader|40.40s)s - %(description|50.50s)s [%(id)s].%(ext)s' --match-filter 'extractor=facebook' \
         $archive_flag \
         $force_overwrite \
-        --exec 'touch {} && echo {} && sync' "$1" || echo "$1" >> ytdl_failure.txt
+        --exec 'touch {} && echo {} && sync' "${!#}" || echo "${!#}" >> ytdl_failure.txt
 }
 
+# 
 source $HOME/personal_scripts/ytfb.sh
 
 ytmax() {
@@ -246,24 +257,44 @@ alias l2='ollama run llama2-uncensored-succinct'
 alias gemma='ollama run gemma2-succinct'
 alias gma='gemma'
 
-review_news() {  
-    ( echo > /dev/tcp/127.0.0.1/5001 ) >/dev/null 2>&1 && echo "Port already in use." && return 1 || echo "Port available...";
-    backup_newsboat_cache
-    # termux-open http://localhost:5001
-    am start -a android.intent.action.VIEW -d "http://localhost:5001" org.mozilla.firefox
-    python $HOME/personal_scripts/nbserver/api_server.py --db=$NEWSBOAT_DB_FILE
+# review_news() {  
+#     ( echo > /dev/tcp/127.0.0.1/5001 ) >/dev/null 2>&1 && echo "Port already in use." && return 1 || echo "Port available...";
+#     # termux-open http://localhost:5001
+#     am start -a android.intent.action.VIEW -d "http://localhost:5001" org.mozilla.firefox
+#     python $HOME/personal_scripts/nbserver/api_server.py --db=$NEWSBOAT_DB_FILE
+# }
+
+is_port_in_use() { (echo > /dev/tcp/127.0.0.1/$1) >/dev/null 2>&1; }
+
+review_news() {
+    local port=5001
+    is_port_in_use "$port" && { echo "Server already running on port $port."; } \
+        || { python "$HOME/personal_scripts/nbserver/api_server.py" --db="$NEWSBOAT_DB_FILE" & sleep 1; }
+    am start -a android.intent.action.VIEW -d "http://localhost:$port" org.mozilla.firefox
 }
+
+review_news() {
+    local port=5001
+    python "$HOME/personal_scripts/nbserver/api_server.py" --db="$NEWSBOAT_DB_FILE" & sleep 1;
+    am start -a android.intent.action.VIEW -d "http://localhost:$port" org.mozilla.firefox
+}
+
 alias nr='review_news'
 
 nbr() {
     backup_newsboat_cache
     echo "Scanning..."
-    newsboat -c $NEWSBOAT_DB_FILE -C $NEWSBOAT_CONFIG_FILEPATH -u $NEWSBOAT_URLS_FILE -x reload print-unread
+    newsboat -c "$NEWSBOAT_DB_FILE" -C "$NEWSBOAT_CONFIG_FILEPATH" -u "$NEWSBOAT_URLS_FILE" -x reload print-unread
     termux-vibrate
-    termux-notification --content "NBServer Sync Complete" --vibrate 500,1000,200 --priority max
+    termux-notification \
+      --title "Open Localhost" \
+      --content "NBServer Sync Complete" \
+      --action "am start -a android.intent.action.VIEW -d 'http://localhost:5001' org.mozilla.firefox"
 }
 
-alias sdl='subliminal download -l en .'
+export OPENSUBTITLES_USERNAME='unverifiedcontact'
+export OPENSUBTITLES_PASSWORD='geronimo'
+alias sdl='time subliminal download -l en -p opensubtitles .'
 alias all_subs='yt-dlp --skip-download --write-subs --write-auto-subs'
 alias mi='mediainfo'
 
@@ -346,3 +377,20 @@ fix_vtt() {
     mv "$tmpfile" "$output"
   fi
 }
+
+# temp function
+fixaudio() {
+  if [ $# -ne 1 ]; then
+    echo "Usage: fixaudio <video_file>"
+    return 1
+  fi
+
+  input="$1"
+  filename=$(basename "$input")
+  ext="${filename##*.}"
+  tmpfile="$HOME/tmp/${filename%.*}_fixed.${ext}"
+
+  ffmpeg -y -i "$input" -c:v copy -c:a aac -b:a 64k "$tmpfile" && mv "$tmpfile" "$input"
+}
+
+alias venv='source venv/bin/activate'
