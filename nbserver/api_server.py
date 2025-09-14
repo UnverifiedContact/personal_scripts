@@ -340,8 +340,20 @@ def handle_batch_delete():
 
 def process_items(items):
     #items = process_dearrow(items)
+    items = process_add_origin(items)
     return items
 
+def process_add_origin(items):
+    for item in items:
+        item['origin'] = determine_origin(item['url'])
+    return items
+
+def determine_origin(url):
+    if '/shorts/' in url: return "youtube shorts"
+    
+    parsed = urlparse(url)
+    return parsed.hostname or ""
+    
 # business logic
 def process_dearrow(items):
     """Process items through business logic."""
