@@ -153,6 +153,53 @@ ytz() {
         --exec 'touch {} && echo {} && sync' "${!#}" || echo "${!#}" >> ytdl_failure.txt
 }
 
+ytpl() {
+    local selections=""
+    selections+="hls-221/hls-222/hls-223/hls-224/hls-225/hls-226/hls-227/hls-228/hls-229/hls-22?/hls-21?/" # rumble mp4 640x360
+    # selections+="bestvideo[height<=480][height>=480][vcodec!*=av01]+bestaudio[abr>=64]/"
+    # selections+="bestvideo[height<=720][height>=720][vcodec!*=av01]+bestaudio[abr>=64]/"
+    # selections+="worstvideo[height>=480][vcodec!*=av01]+(worstaudio[abr>=64]/bestaudio)/"
+    # selections+="worst[height>=480][ext=mp4]/"
+    # selections+="worst[height>=480]/"
+    # selections+="best"
+    selections+="bestvideo[height<=480][height>=480][vcodec!*=av01]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64])/"
+    selections+="bestvideo[height<=720][height>=720][vcodec!*=av01]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64])/"
+    selections+="worstvideo[height>=480][vcodec!*=av01]+((worstaudio[abr>=64][language^=en]/bestaudio[language^=en])/(worstaudio[abr>=64]/bestaudio))/"
+    selections+="worst[height>=480][ext=mp4]/" # this line is necessary else we get fragmented formats which are gay
+    selections+="worst[height>=480]/"
+    selections+="best"
+
+    local progress_format="%(progress._percent_str)s ETA: %(progress._eta_str)s Speed: %(progress._speed_str)s Size: %(progress._total_bytes_str)s"
+    local archive_flag="--download-archive $HOME/yt-dlp/ytdl_success.txt"
+    local force_overwrite=""  # No force overwrite by default
+
+    [[ " $* " == *" --720 "* ]] && selections="bestvideo[height<=720][vcodec!*=av01]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64])/$selections"
+    [[ " $* " == *" --1080 "* ]] && selections="bestvideo[height<=1080][vcodec!*=av01]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64])/$selections"
+    [[ " $* " == *" --force "* ]] && { archive_flag=""; force_overwrite="--force-overwrites"; }
+    [[ " $* " == *" --max "* ]] && { selections="bestvideo+bestaudio/best"; }
+
+    echo "${!#}"
+    $HOME/yt-dlp/yt-dlp.sh \
+        -f "$selections" \
+        --progress-template "[Downloading] %(info.uploader,info.channel)s - %(info.title)s | $progress_format" \
+        --add-metadata \
+        --embed-chapters \
+        --sub-langs=en \
+        --match-filter '!is_live' \
+        --match-filter 'duration<36000' \
+        --embed-subs \
+        --write-auto-subs \
+        --progress \
+        --newline \
+        --merge-output-format mkv \
+        --sponsorblock-chapter all \
+	      --use-postprocessor 'DeArrow:when=pre_process' \
+        -o '%(playlist_index)s %(title)s .%(ext)s' \
+        $archive_flag \
+        $force_overwrite \
+        --exec 'touch {} && echo {} && sync' "${!#}" || echo "${!#}" >> ytdl_failure.txt
+}
+
 # 
 source $HOME/personal_scripts/ytfb.sh
 
@@ -169,7 +216,7 @@ ytinfo() { yt-dlp --dump-json --skip-download $1 | jq --color-output . | less --
 alias yti='ytinfo'
 alias ytlist='yfl'
 # alias ytsubs="yt-dlp --skip-download --write-sub --sub-lang en"
-alias ytsubs="yt-dlp --skip-download --write-sub --write-auto-sub --sub-lang en"
+alias ytsubs="yt-dlp --skip-download --write-sub --write-auto-sub --sub-lang en,en-orig"
 
 ytdl_flat_playlist() { youtube-dl -j --flat-playlist "$1" | jq -r '.id' | sed 's_^_https://youtube.com/v/_'; }
 alias yfp='ytdl_flat_playlist'
@@ -186,7 +233,7 @@ alias ytp9='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-cou3Jzg__BirgJ
 alias ytpn='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-em3dpNukt7dVGQ0EHz5SAC'
 alias ytpr='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-fuoyzZ7XEvDiyaqRYLv7ca'
 
-alias sqlite='sqlite3'
+#alias sqlite='sqlite3'
 alias begin_install='apt-get install tmux git curl wget apache2 aria2 php ncdu htop python jq ffmpeg w3m lynx vim sqlite newsboat parallel axel progress rclone which iproute2 mediainfo rsync man man-pages'
 
 alias browse='w3m -M'
@@ -201,7 +248,68 @@ backup_newsboat_cache() {
     #mbup $ZIP
 }
 
-alias nbcb='backup_newsboat_cache && cbup $HOME/newsboat/newsboat_db.zip'
+backup_newsboat_cache() {
+    DIR=$(dirname "$NEWSBOAT_DB_FILE")
+    ARCHIVE="$DIR/newsboat_db.tar"
+    BACKUP="$DIR/newsboat_db.tar.xz"
+
+    echo "Archiving..."
+    tar -cf "$ARCHIVE" \
+        "$NEWSBOAT_DB_FILE" \
+        "$NEWSBOAT_URLS_FILE" \
+        "$NEWSBOAT_CONFIG_FILEPATH" \ 
+        "$HOME/my_bash.sh"
+
+    echo "Compressing..."
+    xz -9e -f "$ARCHIVE"
+
+    echo "Backing up..."
+    cp --backup=t "$BACKUP" "$NEWSBOAT_DB_BUP_DIR"
+    sync
+    #mbup "$BACKUP"
+}
+
+backup_newsboat_cache() {
+    DIR=$(dirname "$NEWSBOAT_DB_FILE")
+    ARCHIVE="$DIR/newsboat_db.tar"
+    BACKUP="$DIR/newsboat_db.tar.xz"
+
+    echo "Archiving..."
+    tar -cf "$ARCHIVE" \
+        "$NEWSBOAT_DB_FILE" \
+        "$NEWSBOAT_URLS_FILE" \
+        "$NEWSBOAT_CONFIG_FILEPATH" \
+        "$HOME/my_bash.sh" \
+    && echo "Compressing..." \
+    && xz -9e -f "$ARCHIVE" \
+    && echo "Backing up..." \
+    && cp --backup=t "$BACKUP" "$NEWSBOAT_DB_BUP_DIR" \
+    && sync \
+    && echo "Backup complete: $BACKUP"
+}
+
+backup_newsboat_cache() {
+    DIR=$(dirname "$NEWSBOAT_DB_FILE")
+    ARCHIVE="$DIR/newsboat_db.tar"
+    BACKUP="$DIR/newsboat_db.tar.xz"
+
+    echo "Vacuuming..."
+    sqlite3 "$NEWSBOAT_DB_FILE" "VACUUM;"
+    echo "Archiving files..." \
+    && tar -chf "$ARCHIVE" \
+        "$NEWSBOAT_DB_FILE" \
+        "$NEWSBOAT_URLS_FILE" \
+        "$NEWSBOAT_CONFIG_FILEPATH" \
+        "$HOME/my_bash.sh" \
+    && echo "Compressing..." \
+    && xz -v -9e -f "$ARCHIVE" \
+    && echo "Backing up..." \
+    && cp --backup=t "$BACKUP" "$NEWSBOAT_DB_BUP_DIR" \
+    && sync \
+    #mbup "$BACKUP"
+}
+
+alias nbcb='backup_newsboat_cache && cbup $HOME/newsboat/newsboat_db.tar.xz'
 
 # the db file is called the "cache" file for some reason in docs and man so
 #alias backup_newsboat_cache="cp --backup=t $NEWSBOAT_DB_FILEPATH $NEWSBOAT_DB_BACKUPS_DIR && sync"
@@ -210,7 +318,7 @@ alias nbcb='backup_newsboat_cache && cbup $HOME/newsboat/newsboat_db.zip'
 #alias newsboat="backup_newsboat_cache && newsboat -c $NEWSBOAT_DB_FILE -C $NEWSBOAT_CONFIG_FILEPATH -u $NEWSBOAT_URLS_FILE"
 alias newsboat="newsboat -c $NEWSBOAT_DB_FILE -C $NEWSBOAT_CONFIG_FILEPATH -u $NEWSBOAT_URLS_FILE"
 #alias newsboat="newsboat u $NEWSBOAT_URLS_FILE"
-alias nb='backup_newsboat_cache && newsboat'
+alias nb='newsboat'
 alias nbdb="backup_newsboat_cache && sqlite3 $NEWSBOAT_DB_FILE"
 alias cnt="sqlite3 $NEWSBOAT_DB_FILE 'select count(*) from rss_item where deleted =0;'"
 alias nclear="sqlite3 $NEWSBOAT_DB_FILE 'UPDATE rss_item SET deleted=1;'"
@@ -266,20 +374,25 @@ alias gma='gemma'
 
 is_port_in_use() { (echo > /dev/tcp/127.0.0.1/$1) >/dev/null 2>&1; }
 
-review_news() {
-    local port=5001
-    is_port_in_use "$port" && { echo "Server already running on port $port."; } \
-        || { python "$HOME/personal_scripts/nbserver/api_server.py" --db="$NEWSBOAT_DB_FILE" & sleep 1; }
-    am start -a android.intent.action.VIEW -d "http://localhost:$port" org.mozilla.firefox
-}
+# review_news() {
+#     local port=5001
+#     is_port_in_use "$port" && { echo "Server already running on port $port."; } \
+#         || { python "$HOME/personal_scripts/nbserver/api_server.py" --db="$NEWSBOAT_DB_FILE" & sleep 1; }
+#     am start -a android.intent.action.VIEW -d "http://localhost:$port" org.mozilla.firefox
+# }
+
+# review_news() {
+#     local port=5001
+#     python "$HOME/personal_scripts/nbserver/api_server.py" --db="$NEWSBOAT_DB_FILE";
+#     sleep 1;
+#     am start -a android.intent.action.VIEW -d "http://localhost:$port" org.mozilla.firefox
+# }
 
 review_news() {
     local port=5001
-    python "$HOME/personal_scripts/nbserver/api_server.py" --db="$NEWSBOAT_DB_FILE";
-    sleep 1;
-    am start -a android.intent.action.VIEW -d "http://localhost:$port" org.mozilla.firefox
+    ( sleep 2 && am start -a android.intent.action.VIEW -d "http://localhost:$port" org.mozilla.firefox ) &
+    python "$HOME/personal_scripts/nbserver/api_server.py" --db="$NEWSBOAT_DB_FILE"
 }
-
 alias nr='review_news'
 
 nbr() {
