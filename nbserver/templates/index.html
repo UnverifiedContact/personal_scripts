@@ -169,11 +169,23 @@
             text-decoration: none;
         }
 
+        .item-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 0.1em;
+        }
+
         .item-date {
             font-size: 0.75em;
             color: var(--text-secondary);
             letter-spacing: 0.02em;
-            margin-top: 0.1em;
+        }
+
+        .item-origin {
+            font-size: 0.75em;
+            color: var(--text-secondary);
+            letter-spacing: 0.02em;
         }
 
         .item-actions {
@@ -491,6 +503,20 @@
                 padding: 6px 10px;
                 min-width: 70px;
                 font-size: 12px;
+            }
+
+            .item-meta {
+                flex-direction: row;
+                justify-content: space-between;
+            }
+
+            .item-date {
+                font-size: .8em;
+            }
+
+            .item-origin {
+                font-size: .8em;
+                text-align: right;
             }
         }
 
@@ -818,7 +844,10 @@
                         </div>
                     </div>
                     <div class="item-title">${item.title}</div>
-                    <div class="item-date">${formattedDate} - ${item.origin || ''}</div>
+                    <div class="item-meta">
+                        <div class="item-date">${formattedDate}</div>
+                        <div class="item-origin">${item.origin || ''}</div>
+                    </div>
                 </div>
             `;
         }
