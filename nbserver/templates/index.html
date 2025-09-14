@@ -243,7 +243,8 @@
         }
 
         .refresh-button,
-        .clean-button {
+        .clean-button,
+        .scroll-to-top-button {
             font-family: 'SF Mono', 'Consolas', 'Monaco', 'Andale Mono', 'Ubuntu Mono', monospace;
             cursor: pointer;
             color: var(--text-primary);
@@ -278,8 +279,18 @@
             transform: translateY(-1px);
         }
 
+        .scroll-to-top-button {
+            background-color: var(--accent-green, #4CAF50);
+        }
+
+        .scroll-to-top-button:hover {
+            background-color: #45a049;
+            transform: translateY(-1px);
+        }
+
         .refresh-button:active,
-        .clean-button:active {
+        .clean-button:active,
+        .scroll-to-top-button:active {
             transform: translateY(1px);
         }
 
@@ -574,6 +585,9 @@
                     </div>
                 </div>
                 <div class="actions">
+                    <button class="scroll-to-top-button" onclick="scrollToTop()">
+                        Scroll Top
+                    </button>
                     <button class="clean-button" onclick="showClearConfirmation()">
                         Clean All
                     </button>
@@ -789,7 +803,7 @@
                         </div>
                     </div>
                     <div class="item-title">${item.title}</div>
-                    <div class="item-date">${formattedDate}</div>
+                    <div class="item-date">${formattedDate} - ${item.origin || ''}</div>
                 </div>
             `;
         }
@@ -883,6 +897,13 @@
             document.getElementById('modalDeleteCount').textContent = toDeleteCount;
             document.getElementById('modalKeptCount').textContent = keptCount;
             modal.style.display = 'flex';
+        }
+
+        function scrollToTop() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth' // smooth scroll
+            });
         }
 
         function hideClearConfirmation() {
