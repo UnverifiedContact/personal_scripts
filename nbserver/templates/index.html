@@ -703,7 +703,7 @@
     </div>
 
     <script>
-        const API_BASE_URL = 'http://localhost:5001/api';
+        const API_BASE_URL = '/api';
         const keptItems = new Set();
         let currentSort = {
             column: null,
@@ -990,7 +990,7 @@
 
             try {
                 console.log('Sending delete request for IDs:', nonKeptIds);
-                const response = await fetch('http://localhost:5001/api/items/batch-delete', {
+                const response = await fetch(`${API_BASE_URL}/items/batch-delete`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
