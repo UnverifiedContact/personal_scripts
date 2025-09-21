@@ -13,6 +13,12 @@ if [ -f "$HOME/IS_MOBILE" ]; then
     source $PREFIX/etc/profile.d/start-services.sh
     sv-enable sshd
     sv-enable httpd
+    start_nginx_termux() {
+      pgrep php-fpm >/dev/null || php-fpm &
+      pgrep nginx >/dev/null || nginx
+      echo "App should be at http://$(ip -o -4 addr show wlan0 | awk '{print $4}' | cut -d/ -f1):2473"
+    }
+    start_nginx_termux
 else
 	alias python=python3
 	xset b off # no beep
@@ -27,7 +33,7 @@ export NEWSBOAT_DB_FILE="$HOME/newsboat/newsboat_cache.db"
 export NEWSBOAT_CONFIG_FILEPATH="$HOME/newsboat/newsboat_config"
 export NEWSBOAT_URLS_FILE="$HOME/newsboat/newsboat_urls_file"
 alias sub="python3 $HOME/personal_scripts/subscribe.py"
-alias dld="python3 $HOME/personal_scripts/dldir.py"
+alias dld="time python3 $HOME/personal_scripts/dldir.py"
 alias get='php $HOME/personal_scripts/custom_get.php'
 
 alias py='python3'
