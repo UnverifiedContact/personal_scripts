@@ -13,13 +13,6 @@ if [ -f "$HOME/IS_MOBILE" ]; then
   source $PREFIX/etc/profile.d/start-services.sh
   sv-enable sshd
   sv-enable httpd
-  start_nginx_termux() {
-    # Start PHP-FPM if installed and not already running (backgrounded, output suppressed)
-    command -v php-fpm >/dev/null && ! pgrep php-fpm >/dev/null && php-fpm >/dev/null 2>&1 &
-    # Start Nginx if installed and not already running
-    command -v nginx >/dev/null && ! pgrep nginx >/dev/null && nginx
-    #echo "App at http://$(ip -o -4 addr show wlan0 | awk '{print $4}' | cut -d/ -f1):2473"
-}
   start_nginx_termux
 else
 	alias python=python3
@@ -513,6 +506,19 @@ fixaudio() {
   tmpfile="$HOME/tmp/${filename%.*}_fixed.${ext}"
 
   ffmpeg -y -i "$input" -c:v copy -c:a aac -b:a 64k "$tmpfile" && mv "$tmpfile" "$input"
+}
+
+start_nginx_termux() {
+    # Start PHP-FPM if installed and not running
+    if command -v php-fpm >/dev/null && ! pgrep php-fpm >/dev/null; then
+        php-fpm >/dev/null 2>&1 &
+    fi
+    # Start Nginx if installed and not running
+    if command -v nginx >/dev/null && ! pgrep nginx >/dev/null; then
+        nginx >/dev/null 2>&1 &
+    fi
+
+    # echo "App at http://$(ip -o -4 addr show wlan0 | awk '{print $4}' | cut -d/ -f1):2473"
 }
 
 alias venv='source venv/bin/activate'
