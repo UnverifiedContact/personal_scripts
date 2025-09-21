@@ -4,21 +4,21 @@ if [ -f "$HOME/IS_MOBILE" ]; then
 	export TMP=$HOME/tmp
 	[[ -z "${CARD_VIDS_PATH}" ]] && echo 'WARNING: CARD_VIDS_PATH is not set.';
 	alias ol="time rsync -av --progress --size-only . $CARD_VIDS_PATH"
-    alias nol="time rsync -av --progress --size-only . $CARD_NIGHT_PATH"
+  alias nol="time rsync -av --progress --size-only . $CARD_NIGHT_PATH"
 	alias clean_landing='time rm --verbose *.mp4 && rm --verbose *.mkv && rm --verbose *.webm'
-    alias clean_landing='extensions="mp4 mkv webm vtt part ytdl jpg webp srt mp3 avi"; time for ext in $extensions; do rm --verbose *."$ext"; done'
+  alias clean_landing='extensions="mp4 mkv webm vtt part ytdl jpg webp srt mp3 avi"; time for ext in $extensions; do rm --verbose *."$ext"; done'
 	. `which env_parallel.bash`
 	#sshd && sv-enable sshd
-    #apachectl restart && sv-enable httpd
-    source $PREFIX/etc/profile.d/start-services.sh
-    sv-enable sshd
-    sv-enable httpd
-    start_nginx_termux() {
-      pgrep php-fpm >/dev/null || php-fpm &
-      pgrep nginx >/dev/null || nginx
-      echo "App should be at http://$(ip -o -4 addr show wlan0 | awk '{print $4}' | cut -d/ -f1):2473"
-    }
-    start_nginx_termux
+  #apachectl restart && sv-enable httpd
+  source $PREFIX/etc/profile.d/start-services.sh
+  sv-enable sshd
+  sv-enable httpd
+  start_nginx_termux() {
+    command -v php-fpm >/dev/null && pgrep php-fpm >/dev/null || php-fpm &
+    command -v nginx >/dev/null && pgrep nginx >/dev/null || nginx
+    # echo "App should be at http://$(ip -o -4 addr show wlan0 | awk '{print $4}' | cut -d/ -f1):2473"
+  }
+  start_nginx_termux
 else
 	alias python=python3
 	xset b off # no beep
