@@ -25,3 +25,6 @@ build/
 *.onnx
 models/
 checkpoints/
+
+# sub projects as yet untracked as part of this (separated repos)
+calories
