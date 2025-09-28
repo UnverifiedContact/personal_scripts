@@ -544,7 +544,7 @@ EOF
 
 # this is just temporary for dev/testing... better later
 bait() {
-    cd $HOME/personal_scripts/subs_yt_project
+    cd $HOME/personal_scripts/bait_yt_analyse
     source venv/bin/activate
     set -a && source .env && set +a
     python ytprep_cli.py "$@"
@@ -552,9 +552,9 @@ bait() {
 }
 
 bait() {
-    source "$HOME/personal_scripts/subs_yt_project/.env"
+    source "$HOME/personal_scripts/bait_yt_analyse/.env"
     "$HOME/personal_scripts/subs_yt_project/venv/bin/python" \
-        "$HOME/personal_scripts/subs_yt_project/ytprep_cli.py" "$@"
+        "$HOME/personal_scripts/bait_yt_analyse/ytprep_cli.py" "$@"
 }
 
 alias venv='source venv/bin/activate'
