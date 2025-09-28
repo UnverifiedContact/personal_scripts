@@ -542,12 +542,19 @@ print(len(tokens))
 EOF
 }
 
+# this is just temporary for dev/testing... better later
 bait() {
-    cd /home/moth/WORKING_AREA/subs_yt_project
+    cd $HOME/personal_scripts/subs_yt_project
     source venv/bin/activate
     set -a && source .env && set +a
     python ytprep_cli.py "$@"
     deactivate
+}
+
+bait() {
+    source "$HOME/personal_scripts/subs_yt_project/.env"
+    "$HOME/personal_scripts/subs_yt_project/venv/bin/python" \
+        "$HOME/personal_scripts/subs_yt_project/ytprep_cli.py" "$@"
 }
 
 alias venv='source venv/bin/activate'
