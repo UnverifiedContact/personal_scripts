@@ -521,4 +521,33 @@ start_nginx_termux() {
     # echo "App at http://$(ip -o -4 addr show wlan0 | awk '{print $4}' | cut -d/ -f1):2473"
 }
 
+tokens_count() {
+  local file="$1"
+  if [[ ! -f "$file" ]]; then
+    echo "File not found: $file"
+    return 1
+  fi
+
+  python3 - <<EOF
+import tiktoken
+
+# Read file contents
+with open("$file", "r", encoding="utf-8") as f:
+    text = f.read()
+
+# Choose encoding (replace 'gpt-3.5-turbo' with your model if needed)
+enc = tiktoken.encoding_for_model("gpt-3.5-turbo")
+tokens = enc.encode(text)
+print(len(tokens))
+EOF
+}
+
+bait() {
+    cd /home/moth/WORKING_AREA/subs_yt_project
+    source venv/bin/activate
+    set -a && source .env && set +a
+    python ytprep_cli.py "$@"
+    deactivate
+}
+
 alias venv='source venv/bin/activate'
