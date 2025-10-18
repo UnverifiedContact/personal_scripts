@@ -274,12 +274,14 @@ ytdl_soft_flat_channel() { youtube-dl -j "$1" | jq -r '.id'; }
 #alias sy='export -f ytz && parallel -u --jobs 4 ytz ::: $(curl http://209.209.9.16:476/lite.php);'
 alias sy='export -f ytz && parallel -u --jobs 4 ytz ::: $(list_news);'
 alias syp='export -f ytz && export -f ytdl_flat_playlist && parallel -u --jobs 4 ytz ::: $(ytdl_flat_playlist $1);'
-alias ytp='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-fcZOlKWCZn6uP6SJ4btn7G'
-alias ytp7='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-fKGIfEc4IC9pY1ZC22Sa6Q'
-alias ytp8='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-ef0zZtbBhvLLYpGbS_8XsC'
-alias ytp9='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-cou3Jzg__BirgJMv75zgHx'
-alias ytpn='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-em3dpNukt7dVGQ0EHz5SAC'
-alias ytpr='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-fuoyzZ7XEvDiyaqRYLv7ca'
+# alias ytp='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-fcZOlKWCZn6uP6SJ4btn7G'
+# alias ytp7='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-fKGIfEc4IC9pY1ZC22Sa6Q'
+# alias ytp8='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-ef0zZtbBhvLLYpGbS_8XsC'
+# alias ytp9='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-cou3Jzg__BirgJMv75zgHx'
+#alias ytpn='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-em3dpNukt7dVGQ0EHz5SAC'
+
+alias ytw='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-dLfcvHQ5Us0ThR5yM0H2Fd' #water
+alias ytpn='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-evYPqaB_Sdk57cYWDofrMz' # sleepy
 
 #alias sqlite='sqlite3'
 alias begin_install='apt-get install tmux git curl wget apache2 aria2 php ncdu htop python jq ffmpeg w3m lynx vim sqlite newsboat parallel axel progress rclone which iproute2 mediainfo rsync man man-pages'
