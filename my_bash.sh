@@ -142,6 +142,53 @@ ytz() {
         --match-filter '!is_live' \
         --match-filter 'duration<36000' \
         --embed-subs \
+        --progress \
+        --newline \
+        --merge-output-format mkv \
+        --sponsorblock-chapter all \
+	      --use-postprocessor 'DeArrow:when=pre_process' \
+        -o '%(uploader,channel,uploader_id|40.40s)s - %(title)s [%(id)s].%(ext)s' \
+        $archive_flag \
+        $force_overwrite \
+        --exec 'touch {} && echo {} && sync' "${!#}" || echo "${!#}" >> ytdl_failure.txt
+}
+
+# ytz with subs, working as intended
+ytzs() {
+    local selections=""
+    selections+="hls-221/hls-222/hls-223/hls-224/hls-225/hls-226/hls-227/hls-228/hls-229/hls-22?/hls-21?/" # rumble mp4 640x360
+    # selections+="bestvideo[height<=480][height>=480][vcodec!*=av01]+bestaudio[abr>=64]/"
+    # selections+="bestvideo[height<=720][height>=720][vcodec!*=av01]+bestaudio[abr>=64]/"
+    # selections+="worstvideo[height>=480][vcodec!*=av01]+(worstaudio[abr>=64]/bestaudio)/"
+    # selections+="worst[height>=480][ext=mp4]/"
+    # selections+="worst[height>=480]/"
+    # selections+="best"
+    selections+="bestvideo[height<=480][height>=480][vcodec!*=av01]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64])/"
+    selections+="bestvideo[height<=720][height>=720][vcodec!*=av01]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64])/"
+    selections+="worstvideo[height>=480][vcodec!*=av01]+((worstaudio[abr>=64][language^=en]/bestaudio[language^=en])/(worstaudio[abr>=64]/bestaudio))/"
+    selections+="worst[height>=480][ext=mp4]/" # this line is necessary else we get fragmented formats which are gay
+    selections+="worst[height>=480]/"
+    selections+="best"
+
+    local progress_format="%(progress._percent_str)s ETA: %(progress._eta_str)s Speed: %(progress._speed_str)s Size: %(progress._total_bytes_str)s"
+    local archive_flag="--download-archive $HOME/yt-dlp/ytdl_success.txt"
+    local force_overwrite=""  # No force overwrite by default
+
+    [[ " $* " == *" --720 "* ]] && selections="bestvideo[height<=720][vcodec!*=av01]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64])/$selections"
+    [[ " $* " == *" --1080 "* ]] && selections="bestvideo[height<=1080][vcodec!*=av01]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64])/$selections"
+    [[ " $* " == *" --force "* ]] && { archive_flag=""; force_overwrite="--force-overwrites"; }
+    [[ " $* " == *" --max "* ]] && { selections="bestvideo+bestaudio/best"; }
+
+    echo "${!#}"
+    $HOME/yt-dlp/yt-dlp.sh \
+        -f "$selections" \
+        --progress-template "[Downloading] %(info.uploader,info.channel,info.uploader_id)s - %(info.title)s | $progress_format" \
+        --add-metadata \
+        --embed-chapters \
+        --sub-langs=en,en-orig,en-US,en-x-autogen \
+        --match-filter '!is_live' \
+        --match-filter 'duration<36000' \
+        --embed-subs \
         --write-auto-subs \
         --progress \
         --newline \
