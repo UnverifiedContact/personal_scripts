@@ -61,65 +61,70 @@ def main():
         exit_with(1, f"No general track found in \"{media_file}\".")
 
     purl = getattr(general_track, "purl", None)
+    if not purl:
+        exit_with(0, "No purl attribute found in media file.")
     
     video_id = extract_youtube_id(purl)
     if not video_id:
-        exit_with(1, "Could not extract video ID from purl attribute.")
-
+        exit_with(0, "Could not determine video ID... Maybe not a YouTube video?")
     
-    resp = requests.get(f"http://127.0.0.1:5485/transcript/{video_id}")
-    if not resp.ok:
-        exit_with(1, f"Transcript service error: HTTP {resp.status_code}")
-    data = resp.json()
-    transcript_items = data.get("transcript") or []
-    vtt = transcript_to_vtt(transcript_items)
+    try:
+        resp = requests.get(f"http://127.0.0.1:5485/transcript/{video_id}", timeout=5)
+        if not resp.ok:
+            exit_with(0, f"Transcript service unavailable (HTTP {resp.status_code}), skipping subtitle injection")
+        
+        data = resp.json()
+        transcript_items = data.get("transcript") or []
+        vtt = transcript_to_vtt(transcript_items)
 
-    tmp_dir = os.environ.get("TMP")
-    if not tmp_dir:
-        exit_with(1, "TMP environment variable not set")
-    base_name = os.path.splitext(os.path.basename(media_file))[0]
-    vtt_path = os.path.join(tmp_dir, f"{base_name}.vtt")
-    with open(vtt_path, "w", encoding="utf-8") as f:
-        f.write(vtt)
+        tmp_dir = os.environ.get("TMP")
+        if not tmp_dir:
+            exit_with(1, "TMP environment variable not set")
+        base_name = os.path.splitext(os.path.basename(media_file))[0]
+        vtt_path = os.path.join(tmp_dir, f"{base_name}.vtt")
+        with open(vtt_path, "w", encoding="utf-8") as f:
+            f.write(vtt)
 
-    muxed_path = os.path.join(tmp_dir, f"{base_name}.muxed.mkv")
+        muxed_path = os.path.join(tmp_dir, f"{base_name}.muxed.mkv")
 
-    # Mux WebVTT into the MKV as a subtitle stream
-    ffmpeg_cmd = [
-        "ffmpeg", "-y",
-        "-i", media_file,
-        "-i", vtt_path,
-        "-map", "0",
-        "-map", "1",
-        "-c", "copy",
-        "-c:s", "webvtt",
-        muxed_path,
-    ]
+        # Mux WebVTT into the MKV as a subtitle stream
+        ffmpeg_cmd = [
+            "ffmpeg", "-y",
+            "-i", media_file,
+            "-i", vtt_path,
+            "-map", "0",
+            "-map", "1",
+            "-c", "copy",
+            "-c:s", "webvtt",
+            muxed_path,
+        ]
 
-    result = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    if result.returncode != 0:
-        # Forward ffmpeg stderr to our stderr to avoid stdout noise
-        sys.stderr.write(result.stderr)
-        exit_with(1, "ffmpeg failed to mux subtitles")
+        result = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if result.returncode != 0:
+            # Forward ffmpeg stderr to our stderr to avoid stdout noise
+            sys.stderr.write(result.stderr)
+            exit_with(1, "ffmpeg failed to mux subtitles")
 
-    # Overwrite original with rsync showing progress
-    rsync_cmd = [
-        "rsync", "-a", "--info=progress2", muxed_path, media_file
-    ]
-    rsync_result = subprocess.run(rsync_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    if rsync_result.returncode != 0:
-        sys.stderr.write(rsync_result.stderr)
-        exit_with(1, "rsync failed to overwrite the original file")
+        # Overwrite original with rsync showing progress
+        rsync_cmd = [
+            "rsync", "-a", "--info=progress2", muxed_path, media_file
+        ]
+        rsync_result = subprocess.run(rsync_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if rsync_result.returncode != 0:
+            sys.stderr.write(rsync_result.stderr)
+            exit_with(1, "rsync failed to overwrite the original file")
 
-
-    result = dict(data)
-    if "transcript" in result:
-        result.pop("transcript", None)
-    result["purl"] = purl
-    #result["video_path"] = os.path.basename(media_file)
-    result["video_file"] = os.path.basename(media_file)
-    print(json.dumps(result, indent=2, ensure_ascii=False))
-    sys.exit(0)
+        result = dict(data)
+        if "transcript" in result:
+            result.pop("transcript", None)
+        result["purl"] = purl
+        #result["video_path"] = os.path.basename(media_file)
+        result["video_file"] = os.path.basename(media_file)
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        sys.exit(0)
+        
+    except requests.exceptions.RequestException as e:
+        exit_with(0, f"Transcript service unavailable ({e}), skipping subtitle injection")
 
 
 def format_timestamp(seconds: float) -> str:
