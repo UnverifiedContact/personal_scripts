@@ -28,6 +28,7 @@ export NEWSBOAT_DB_FILE="$HOME/newsboat/newsboat_cache.db"
 export NEWSBOAT_CONFIG_FILEPATH="$HOME/newsboat/newsboat_config"
 export NEWSBOAT_URLS_FILE="$HOME/newsboat/newsboat_urls_file"
 alias sub="python3 $HOME/personal_scripts/subscribe.py"
+alias iys="python3 $HOME/personal_scripts/inject_yt_subs.py"
 alias dld="time python3 $HOME/personal_scripts/dldir.py"
 alias get='php $HOME/personal_scripts/custom_get.php'
 
@@ -486,6 +487,8 @@ alias pqt='docker ps --filter "name=laracasts-downloader" -q | xargs -r docker s
 #     sed "/^WEBVTT$/d; /^X-TIMESTAMP-MAP=/d; /^[[:space:]]*$/d; s/[[:space:]]\\{1,\\}/ /g" "$file"
 #   } > "$tmp" && mv "$tmp" "$file"
 # }'
+
+desub() { ffmpeg -i "$1" -map 0 -map -0:s -c copy "$TMP/$1" && rsync --progress "$TMP/$1" "$1" && rm "$TMP/$1"; }
 
 emsub_mkv() {
     local input="$1"
