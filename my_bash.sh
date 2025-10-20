@@ -108,7 +108,7 @@ scream() {
 	done
 };
 
-ytz() {
+ytz_bup() {
     local selections=""
     selections+="hls-221/hls-222/hls-223/hls-224/hls-225/hls-226/hls-227/hls-228/hls-229/hls-22?/hls-21?/" # rumble mp4 640x360
     # selections+="bestvideo[height<=480][height>=480][vcodec!*=av01]+bestaudio[abr>=64]/"
@@ -154,7 +154,7 @@ ytz() {
         --exec 'touch {} && echo {} && sync' "${!#}" || echo "${!#}" >> ytdl_failure.txt
 }
 
-ytz_new() {
+ytz() {
     local selections=""
     selections+="hls-221/hls-222/hls-223/hls-224/hls-225/hls-226/hls-227/hls-228/hls-229/hls-22?/hls-21?/" # rumble mp4 640x360
     # selections+="bestvideo[height<=480][height>=480][vcodec!*=av01]+bestaudio[abr>=64]/"
