@@ -49,7 +49,9 @@ def main():
     transcript_items = data.get("transcript") or []
     vtt = transcript_to_vtt(transcript_items)
 
-    tmp_dir = os.environ.get("TMP", "/tmp")
+    tmp_dir = os.environ.get("TMP")
+    if not tmp_dir:
+        exit_with(1, "TMP environment variable not set")
     base_name = os.path.splitext(os.path.basename(media_file))[0]
     vtt_path = os.path.join(tmp_dir, f"{base_name}.vtt")
     with open(vtt_path, "w", encoding="utf-8") as f:
