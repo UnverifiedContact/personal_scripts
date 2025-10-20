@@ -173,7 +173,7 @@ ytz_new() {
     local progress_format="%(progress._percent_str)s ETA: %(progress._eta_str)s Speed: %(progress._speed_str)s Size: %(progress._total_bytes_str)s"
     local archive_flag="--download-archive $HOME/yt-dlp/ytdl_success.txt"
     local force_overwrite=""  # No force overwrite by default
-    local skip_subs=""  # No skip subs by default
+    local skip_subs=""
 
     [[ " $* " == *" --720 "* ]] && selections="bestvideo[height<=720][vcodec!*=av01]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64])/$selections"
     [[ " $* " == *" --1080 "* ]] && selections="bestvideo[height<=1080][vcodec!*=av01]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64])/$selections"
@@ -204,7 +204,6 @@ ytz_new() {
         || echo "${!#}" >> ytdl_failure.txt
 }
 
-# ytz with subs, working as intended
 ytzs() {
     local selections=""
     selections+="hls-221/hls-222/hls-223/hls-224/hls-225/hls-226/hls-227/hls-228/hls-229/hls-22?/hls-21?/" # rumble mp4 640x360
