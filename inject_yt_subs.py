@@ -69,7 +69,7 @@ def main():
         exit_with(0, "Could not determine video ID... Maybe not a YouTube video?")
     
     try:
-        resp = requests.get(f"http://127.0.0.1:5485/transcript/{video_id}", timeout=5)
+        resp = requests.get(f"http://127.0.0.1:5485/transcript/{video_id}", timeout=30)
         if not resp.ok:
             exit_with(0, f"Transcript service unavailable (HTTP {resp.status_code}), skipping subtitle injection")
         
