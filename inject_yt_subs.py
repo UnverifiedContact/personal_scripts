@@ -9,31 +9,42 @@ import json
 import subprocess
 import shutil
 
+
+def exit_with(code: int, message: str) -> None:
+    """Write message (prefixed) to stderr and exit with the provided code."""
+    prefix = "INFO" if code == 0 else ("USAGE" if code == 2 else "ERROR")
+    if message:
+        sys.stderr.write(f"{prefix}: {message}\n")
+    sys.exit(code)
+
 def main():
     if not sys.argv[1:]:
-        print("Usage: inject_yt_subs.py <media_file>")
-        sys.exit(2)
+        exit_with(2, "Usage: inject_yt_subs.py <media_file>")
 
     media_file = sys.argv[1]
     if not os.path.exists(media_file):
-        sys.exit("File not found.")
+        exit_with(1, "File not found.")
+
+    if has_subtitle_tracks(media_file):
+        exit_with(0, f"Subtitle tracks already present in {media_file}.")
 
     media_info = MediaInfo.parse(media_file)
     general_tracks = [t for t in media_info.tracks if t.track_type == "General"]
     general_track = general_tracks[0] if general_tracks else None
 
     if not general_track:
-        print(f"No general track found in {media_file}.")
-        sys.exit(1)
+        exit_with(1, f"No general track found in \"{media_file}\".")
 
     purl = getattr(general_track, "purl", None)
     
     video_id = extract_youtube_id(purl)
     if not video_id:
-        sys.exit("Could not extract video ID from purl attribute.")
+        exit_with(1, "Could not extract video ID from purl attribute.")
 
     
     resp = requests.get(f"http://127.0.0.1:5485/transcript/{video_id}")
+    if not resp.ok:
+        exit_with(1, f"Transcript service error: HTTP {resp.status_code}")
     data = resp.json()
     transcript_items = data.get("transcript") or []
     vtt = transcript_to_vtt(transcript_items)
@@ -60,8 +71,9 @@ def main():
 
     result = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if result.returncode != 0:
-        print(result.stderr)
-        sys.exit("ffmpeg failed to mux subtitles")
+        # Forward ffmpeg stderr to our stderr to avoid stdout noise
+        sys.stderr.write(result.stderr)
+        exit_with(1, "ffmpeg failed to mux subtitles")
 
     # Overwrite original with rsync showing progress
     rsync_cmd = [
@@ -69,8 +81,8 @@ def main():
     ]
     rsync_result = subprocess.run(rsync_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if rsync_result.returncode != 0:
-        print(rsync_result.stderr)
-        sys.exit("rsync failed to overwrite the original file")
+        sys.stderr.write(rsync_result.stderr)
+        exit_with(1, "rsync failed to overwrite the original file")
 
 
     result = dict(data)
@@ -80,6 +92,7 @@ def main():
     #result["video_path"] = os.path.basename(media_file)
     result["video_file"] = os.path.basename(media_file)
     print(json.dumps(result, indent=2, ensure_ascii=False))
+    sys.exit(0)
 
 
 def format_timestamp(seconds: float) -> str:
@@ -130,6 +143,27 @@ def extract_youtube_id(value: str) -> str | None:
         return parsed.path.lstrip("/")
     
     return None
+
+def has_subtitle_tracks(media_file: str) -> bool:
+    """
+    Use ffprobe to detect whether the media file already contains any subtitle streams.
+
+    Returns True if at least one subtitle stream is present; False otherwise.
+    """
+    ffprobe_cmd = [
+        "ffprobe",
+        "-v", "error",
+        "-select_streams", "s",
+        "-show_entries", "stream=index",
+        "-of", "json",
+        media_file,
+    ]
+    proc = subprocess.run(ffprobe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if proc.returncode != 0:
+        return False
+    payload = json.loads(proc.stdout or "{}")
+    streams = payload.get("streams") or []
+    return len(streams) > 0
 
 if __name__ == "__main__":
     main()
