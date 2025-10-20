@@ -182,26 +182,38 @@ ytz() {
     [[ " $* " == *" --skip-subs "* ]] && skip_subs="true"
 
     echo "${!#}"
-    $HOME/yt-dlp/yt-dlp.sh \
-        -f "$selections" \
-        --progress-template "[Downloading] %(info.uploader,info.channel,info.uploader_id)s - %(info.title)s | $progress_format" \
-        --add-metadata \
-        --embed-chapters \
-        --sub-langs=en,en-orig,en-US,en-x-autogen \
-        --match-filter '!is_live' \
-        --match-filter 'duration<36000' \
-        --embed-subs \
-        --progress \
-        --newline \
-        --merge-output-format mkv \
-        --sponsorblock-chapter all \
-	      --use-postprocessor 'DeArrow:when=pre_process' \
-        -o '%(uploader,channel,uploader_id|40.40s)s - %(title)s [%(id)s].%(ext)s' \
-        $archive_flag \
-        $force_overwrite \
-        --exec 'touch {} && echo {} && sync' \
-        $([ "$skip_subs" != "true" ] && echo "--exec 'python3 $HOME/personal_scripts/inject_yt_subs.py {}'") "${!#}" \
-        || echo "${!#}" >> ytdl_failure.txt
+    
+    # Build command arguments
+    local cmd_args=(
+        -f "$selections"
+        --progress-template "[Downloading] %(info.uploader,info.channel,info.uploader_id)s - %(info.title)s | $progress_format"
+        --add-metadata
+        --embed-chapters
+        --sub-langs=en,en-orig,en-US,en-x-autogen
+        --match-filter '!is_live'
+        --match-filter 'duration<36000'
+        --embed-subs
+        --progress
+        --newline
+        --merge-output-format mkv
+        --sponsorblock-chapter all
+        --use-postprocessor 'DeArrow:when=pre_process'
+        -o '%(uploader,channel,uploader_id|40.40s)s - %(title)s [%(id)s].%(ext)s'
+        $archive_flag
+        $force_overwrite
+        --exec 'touch {} && echo {} && sync'
+    )
+    
+    # Add subtitle injection exec if not skipping
+    if [ "$skip_subs" != "true" ]; then
+        cmd_args+=(--exec "python3 $HOME/personal_scripts/inject_yt_subs.py {}")
+    fi
+    
+    # Add the URL
+    cmd_args+=("${!#}")
+    
+    # Execute the command
+    "$HOME/yt-dlp/yt-dlp.sh" "${cmd_args[@]}" || echo "${!#}" >> ytdl_failure.txt
 }
 
 ytzs() {
