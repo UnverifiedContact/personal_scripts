@@ -173,11 +173,13 @@ ytz_new() {
     local progress_format="%(progress._percent_str)s ETA: %(progress._eta_str)s Speed: %(progress._speed_str)s Size: %(progress._total_bytes_str)s"
     local archive_flag="--download-archive $HOME/yt-dlp/ytdl_success.txt"
     local force_overwrite=""  # No force overwrite by default
+    local skip_subs=""  # No skip subs by default
 
     [[ " $* " == *" --720 "* ]] && selections="bestvideo[height<=720][vcodec!*=av01]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64])/$selections"
     [[ " $* " == *" --1080 "* ]] && selections="bestvideo[height<=1080][vcodec!*=av01]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64])/$selections"
     [[ " $* " == *" --force "* ]] && { archive_flag=""; force_overwrite="--force-overwrites"; }
     [[ " $* " == *" --max "* ]] && { selections="bestvideo+bestaudio/best"; }
+    [[ " $* " == *" --skip-subs "* ]] && skip_subs="true"
 
     echo "${!#}"
     $HOME/yt-dlp/yt-dlp.sh \
@@ -198,7 +200,7 @@ ytz_new() {
         $archive_flag \
         $force_overwrite \
         --exec 'touch {} && echo {} && sync' \
-        --exec 'python3 $HOME/personal_scripts/inject_yt_subs.py {}' "${!#}" \
+        $([ "$skip_subs" != "true" ] && echo "--exec 'python3 $HOME/personal_scripts/inject_yt_subs.py {}'") "${!#}" \
         || echo "${!#}" >> ytdl_failure.txt
 }
 
