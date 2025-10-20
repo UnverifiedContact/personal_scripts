@@ -27,19 +27,16 @@ def main():
         sys.exit(1)
 
     purl = getattr(general_track, "purl", None)
-    print(purl)
     
     video_id = extract_youtube_id(purl)
     if not video_id:
         sys.exit("Could not extract video ID from purl attribute.")
 
-    print(video_id)
     
     resp = requests.get(f"http://127.0.0.1:5485/transcript/{video_id}")
     data = resp.json()
     transcript_items = data.get("transcript") or []
     vtt = transcript_to_vtt(transcript_items)
-    print(vtt)
 
     tmp_dir = os.environ.get("TMP", "/tmp")
     base_name = os.path.splitext(os.path.basename(media_file))[0]
@@ -74,6 +71,15 @@ def main():
     if rsync_result.returncode != 0:
         print(rsync_result.stderr)
         sys.exit("rsync failed to overwrite the original file")
+
+
+    result = dict(data)
+    if "transcript" in result:
+        result.pop("transcript", None)
+    result["purl"] = purl
+    #result["video_path"] = os.path.basename(media_file)
+    result["video_file"] = os.path.basename(media_file)
+    print(json.dumps(result, indent=2, ensure_ascii=False))
 
 
 def format_timestamp(seconds: float) -> str:
