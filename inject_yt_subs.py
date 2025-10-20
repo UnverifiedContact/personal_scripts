@@ -10,6 +10,30 @@ import subprocess
 import shutil
 
 
+def is_termux() -> bool:
+    """Check if we're running on Termux."""
+    return os.path.exists("/data/data/com.termux/files/usr")
+
+
+def find_mediainfo_lib() -> str | None:
+    """Find libmediainfo library for pymediainfo to use."""
+    # If not Termux, let pymediainfo use its default behavior
+    if not is_termux():
+        return None
+    
+    # Only apply Termux-specific fix if we're actually on Termux
+    termux_candidates = [
+        "/data/data/com.termux/files/usr/lib/libmediainfo.so",
+        "/data/data/com.termux/files/usr/lib/libmediainfo.so.0",
+    ]
+    for path in termux_candidates:
+        if os.path.exists(path):
+            return path
+    
+    # If no library found, let pymediainfo use its default behavior
+    return None
+
+
 def exit_with(code: int, message: str) -> None:
     """Write message (prefixed) to stderr and exit with the provided code."""
     prefix = "INFO" if code == 0 else ("USAGE" if code == 2 else "ERROR")
@@ -28,7 +52,8 @@ def main():
     if has_subtitle_tracks(media_file):
         exit_with(0, f"Subtitle tracks already present in {media_file}.")
 
-    media_info = MediaInfo.parse(media_file)
+    library_file = find_mediainfo_lib()
+    media_info = MediaInfo.parse(media_file, library_file=library_file)
     general_tracks = [t for t in media_info.tracks if t.track_type == "General"]
     general_track = general_tracks[0] if general_tracks else None
 
