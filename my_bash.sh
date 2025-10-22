@@ -198,6 +198,7 @@ ytz() {
         --merge-output-format mkv
         --sponsorblock-chapter all
         --use-postprocessor 'DeArrow:when=pre_process'
+        --extractor-args "youtube:player_client=default,web_safari;player_js_version=actual"
         -o '%(uploader,channel,uploader_id|40.40s)s - %(title)s [%(id)s].%(ext)s'
         $archive_flag
         $force_overwrite
