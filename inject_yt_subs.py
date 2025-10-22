@@ -93,25 +93,8 @@ def main():
         with open(vtt_path, "w", encoding="utf-8") as f:
             f.write(vtt)
 
-        muxed_path = os.path.join(tmp_dir, f"{base_name}.muxed.mkv")
-
-        # Mux WebVTT into the MKV as a subtitle stream
-        ffmpeg_cmd = [
-            "ffmpeg", "-y",
-            "-i", media_file,
-            "-i", vtt_path,
-            "-map", "0",
-            "-map", "1",
-            "-c", "copy",
-            "-c:s", "webvtt",
-            muxed_path,
-        ]
-
-        result = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        if result.returncode != 0:
-            # Forward ffmpeg stderr to our stderr to avoid stdout noise
-            sys.stderr.write(result.stderr)
-            exit_with(1, "ffmpeg failed to mux subtitles")
+        # Embed subtitles using appropriate method for file format
+        muxed_path = embed_subtitles_by_format(media_file, vtt_path, tmp_dir)
 
         # Overwrite original with rsync showing progress
         rsync_cmd = [
@@ -149,6 +132,88 @@ def format_timestamp(seconds: float) -> str:
     secs = remainder // 1000
     millis = remainder % 1000
     return f"{hours:02d}:{minutes:02d}:{secs:02d}.{millis:03d}"
+
+
+def embed_subtitles_mkv(media_file: str, vtt_path: str, muxed_path: str) -> None:
+    """
+    Embed WebVTT subtitles into an MKV file using ffmpeg.
+    
+    Args:
+        media_file: Path to the original media file
+        vtt_path: Path to the WebVTT subtitle file
+        muxed_path: Path where the muxed file will be saved
+    """
+    ffmpeg_cmd = [
+        "ffmpeg", "-y",
+        "-i", media_file,
+        "-i", vtt_path,
+        "-map", "0",
+        "-map", "1",
+        "-c", "copy",
+        "-c:s", "webvtt",
+        muxed_path,
+    ]
+    
+    result = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if result.returncode != 0:
+        # Forward ffmpeg stderr to our stderr to avoid stdout noise
+        sys.stderr.write(result.stderr)
+        exit_with(1, "ffmpeg failed to mux subtitles into MKV")
+
+
+def embed_subtitles_mp4(media_file: str, vtt_path: str, muxed_path: str) -> None:
+    """
+    Embed WebVTT subtitles into an MP4 file using ffmpeg.
+    
+    Args:
+        media_file: Path to the original media file
+        vtt_path: Path to the WebVTT subtitle file
+        muxed_path: Path where the muxed file will be saved
+    """
+    ffmpeg_cmd = [
+        "ffmpeg", "-y",
+        "-i", media_file,
+        "-i", vtt_path,
+        "-map", "0",
+        "-map", "1",
+        "-c", "copy",
+        "-c:s", "mov_text",  # MP4 uses mov_text codec for subtitles
+        muxed_path,
+    ]
+    
+    result = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if result.returncode != 0:
+        # Forward ffmpeg stderr to our stderr to avoid stdout noise
+        sys.stderr.write(result.stderr)
+        exit_with(1, "ffmpeg failed to mux subtitles into MP4")
+
+
+def embed_subtitles_by_format(media_file: str, vtt_path: str, tmp_dir: str) -> str:
+    """
+    Embed subtitles into a media file using the appropriate method based on file format.
+    
+    Args:
+        media_file: Path to the original media file
+        vtt_path: Path to the WebVTT subtitle file
+        tmp_dir: Directory for temporary files
+        
+    Returns:
+        Path to the muxed file
+    """
+    base_name = os.path.splitext(os.path.basename(media_file))[0]
+    file_ext = os.path.splitext(media_file)[1].lower()
+    muxed_path = os.path.join(tmp_dir, f"{base_name}.muxed{file_ext}")
+
+    # Choose appropriate embedding function based on file type
+    if file_ext == ".mkv":
+        embed_subtitles_mkv(media_file, vtt_path, muxed_path)
+    elif file_ext == ".mp4":
+        embed_subtitles_mp4(media_file, vtt_path, muxed_path)
+    else:
+        # Default to MKV for unknown formats
+        embed_subtitles_mkv(media_file, vtt_path, muxed_path)
+    
+    return muxed_path
 
 
 def transcript_to_vtt(items: list[dict]) -> str:
