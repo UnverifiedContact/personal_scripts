@@ -41,6 +41,18 @@ def exit_with(code: int, message: str) -> None:
         sys.stderr.write(f"{prefix}: {message}\n")
     sys.exit(code)
 
+def extract_youtube_id(general_track):
+
+    purl = getattr(general_track, "purl", None)
+    comment = getattr(general_track, "comment", None)
+
+    if purl:
+        return determine_video_id(purl)
+    if comment:
+        return determine_video_id(comment)
+
+    return None
+
 def main():
     if not sys.argv[1:]:
         exit_with(2, "Usage: inject_yt_subs.py <media_file>")
@@ -60,14 +72,10 @@ def main():
     if not general_track:
         exit_with(1, f"No general track found in \"{media_file}\".")
 
-    purl = getattr(general_track, "purl", None)
-    if not purl:
-        exit_with(0, "No purl attribute found in media file.")
-    
-    video_id = extract_youtube_id(purl)
+    video_id = extract_youtube_id(general_track)
     if not video_id:
-        exit_with(0, "Could not determine video ID... Maybe not a YouTube video?")
-    
+        exit_with(0, "Could not find video ID in metadata.. Maybe not a YouTube video?")
+
     try:
         resp = requests.get(f"http://127.0.0.1:5485/transcript/{video_id}", timeout=30)
         if not resp.ok:
@@ -114,11 +122,16 @@ def main():
             sys.stderr.write(rsync_result.stderr)
             exit_with(1, "rsync failed to overwrite the original file")
 
+        # Clean up temporary files
+        try:
+            os.remove(vtt_path)
+            os.remove(muxed_path)
+        except OSError:
+            pass  # Ignore errors if files don't exist or can't be removed
+
         result = dict(data)
         if "transcript" in result:
             result.pop("transcript", None)
-        result["purl"] = purl
-        #result["video_path"] = os.path.basename(media_file)
         result["video_file"] = os.path.basename(media_file)
         print(json.dumps(result, indent=2, ensure_ascii=False))
         sys.exit(0)
@@ -154,7 +167,7 @@ def transcript_to_vtt(items: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def extract_youtube_id(value: str) -> str | None:
+def determine_video_id(value: str) -> str | None:
     if not value:
         return None
     value = value.strip()
