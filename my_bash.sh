@@ -192,7 +192,7 @@ ytz() {
         #--sub-langs=en,en-orig,en-US,en-x-autogen
         --match-filter '!is_live'
         --match-filter 'duration<36000'
-        --embed-subs
+        #--embed-subs
         --progress
         --newline
         --merge-output-format mkv
