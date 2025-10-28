@@ -139,7 +139,7 @@ ytz_bup() {
         --progress-template "[Downloading] %(info.uploader,info.channel,info.uploader_id)s - %(info.title)s | $progress_format" \
         --add-metadata \
         --embed-chapters \
-        --sub-langs=en,en-orig,en-US,en-x-autogen \
+        --sub-langs=en,en-orig,en-US,en-x-autogen,en-auto \
         --match-filter '!is_live' \
         --match-filter 'duration<36000' \
         --embed-subs \
@@ -189,7 +189,7 @@ ytz() {
         --progress-template "[Downloading] %(info.uploader,info.channel,info.uploader_id)s - %(info.title)s | $progress_format"
         --add-metadata
         --embed-chapters
-        --sub-langs=en,en-orig,en-US,en-x-autogen
+        #--sub-langs=en,en-orig,en-US,en-x-autogen
         --match-filter '!is_live'
         --match-filter 'duration<36000'
         --embed-subs
@@ -198,7 +198,7 @@ ytz() {
         --merge-output-format mkv
         --sponsorblock-chapter all
         --use-postprocessor 'DeArrow:when=pre_process'
-        --extractor-args "youtube:player_client=default,web_safari;player_js_version=actual"
+        #--extractor-args "youtube:player_client=default,web_safari;player_js_version=actual" # temp workaround
         -o '%(uploader,channel,uploader_id|40.40s)s - %(title)s [%(id)s].%(ext)s'
         $archive_flag
         $force_overwrite
