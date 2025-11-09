@@ -41,6 +41,13 @@ def exit_with(code: int, message: str) -> None:
         sys.stderr.write(f"{prefix}: {message}\n")
     sys.exit(code)
 
+
+def safe_decode_bytes(data: bytes) -> str:
+    """Safely decode bytes to string, handling encoding errors gracefully."""
+    if data is None:
+        return ""
+    return data.decode('utf-8', errors='replace')
+
 def extract_youtube_id(general_track):
 
     purl = getattr(general_track, "purl", None)
@@ -100,9 +107,10 @@ def main():
         rsync_cmd = [
             "rsync", "-a", "--info=progress2", muxed_path, media_file
         ]
-        rsync_result = subprocess.run(rsync_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        rsync_result = subprocess.run(rsync_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         if rsync_result.returncode != 0:
-            sys.stderr.write(rsync_result.stderr)
+            stderr_text = safe_decode_bytes(rsync_result.stderr)
+            sys.stderr.write(stderr_text)
             exit_with(1, "rsync failed to overwrite the original file")
 
         # Clean up temporary files
@@ -154,10 +162,11 @@ def embed_subtitles_mkv(media_file: str, vtt_path: str, muxed_path: str) -> None
         muxed_path,
     ]
     
-    result = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    result = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if result.returncode != 0:
         # Forward ffmpeg stderr to our stderr to avoid stdout noise
-        sys.stderr.write(result.stderr)
+        stderr_text = safe_decode_bytes(result.stderr)
+        sys.stderr.write(stderr_text)
         exit_with(1, "ffmpeg failed to mux subtitles into MKV")
 
 
@@ -181,10 +190,11 @@ def embed_subtitles_mp4(media_file: str, vtt_path: str, muxed_path: str) -> None
         muxed_path,
     ]
     
-    result = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    result = subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if result.returncode != 0:
         # Forward ffmpeg stderr to our stderr to avoid stdout noise
-        sys.stderr.write(result.stderr)
+        stderr_text = safe_decode_bytes(result.stderr)
+        sys.stderr.write(stderr_text)
         exit_with(1, "ffmpeg failed to mux subtitles into MP4")
 
 
@@ -268,10 +278,11 @@ def has_subtitle_tracks(media_file: str) -> bool:
         "-of", "json",
         media_file,
     ]
-    proc = subprocess.run(ffprobe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    proc = subprocess.run(ffprobe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if proc.returncode != 0:
         return False
-    payload = json.loads(proc.stdout or "{}")
+    stdout_text = safe_decode_bytes(proc.stdout)
+    payload = json.loads(stdout_text or "{}")
     streams = payload.get("streams") or []
     return len(streams) > 0
 
