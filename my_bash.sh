@@ -19,6 +19,8 @@ else
 	xset b off # no beep
 	export TMP='/tmp'
 	export PATH="$HOME/.local/bin:$PATH" # for pipx binaries
+	alias whack_gnome='pkill -f "gnome-terminal"'
+	alias wn='whack_gnome'
 fi
 
 [[ -z "${NEWSBOAT_DB_BUP_DIR}" ]] && echo 'WARNING: NEWSBOAT_DB_BUP_DIR is not set.';
@@ -281,7 +283,7 @@ ytz() {
         --exec 'touch {} && echo {} && sync'
     )
     
-    [ "$skip_subs" != "true" ] && cmd_args+=(--sub-langs=en,en-orig,en-US,en-x-autogen,en-auto,English --embed-subs --write-auto-subs)
+    [ "$skip_subs" != "true" ] && cmd_args+=(--sub-langs=en,en-orig,en-US,en-x-autogen,en-auto,English --write-subs --write-auto-subs --embed-subs)
     [ "$is_youtube" = "true" ] && cmd_args+=(--exec "python3 $HOME/personal_scripts/inject_yt_subs.py {}")
     
     "$HOME/yt-dlp/yt-dlp.sh" "${cmd_args[@]}" "$url" || echo "$url" >> ytdl_failure.txt
