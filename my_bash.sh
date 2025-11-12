@@ -251,11 +251,13 @@ ytz() {
     local progress_format="%(progress._percent_str)s ETA: %(progress._eta_str)s Speed: %(progress._speed_str)s Size: %(progress._total_bytes_str)s"
     local archive_flag="--download-archive $HOME/yt-dlp/ytdl_success.txt"
     local force_overwrite=""
+    local use_cookies=""
     
     [[ " $* " == *" --720 "* ]] && selections="bestvideo[height<=720][vcodec!*=av01]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64])/$selections"
     [[ " $* " == *" --1080 "* ]] && selections="bestvideo[height<=1080][vcodec!*=av01]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64])/$selections"
     [[ " $* " == *" --force "* ]] && { archive_flag=""; force_overwrite="--force-overwrites"; }
     [[ " $* " == *" --max "* ]] && selections="bestvideo+bestaudio/best"
+    [[ " $* " == *" --cookies "* ]] && use_cookies="true"
     
     # YouTube: default skip_subs (unless --get-subs); Non-YouTube: always get subs
     local is_youtube="" skip_subs=""
@@ -285,6 +287,7 @@ ytz() {
     
     [ "$skip_subs" != "true" ] && cmd_args+=(--sub-langs=en,en-orig,en-US,en-x-autogen,en-auto,English --write-subs --write-auto-subs --embed-subs)
     [ "$is_youtube" = "true" ] && cmd_args+=(--exec "python3 $HOME/personal_scripts/inject_yt_subs.py {}")
+    [ "$use_cookies" = "true" ] && cmd_args+=(--cookies $HOME/yt-dlp/youtube.com_cookies.txt)
     
     "$HOME/yt-dlp/yt-dlp.sh" "${cmd_args[@]}" "$url" || echo "$url" >> ytdl_failure.txt
 }
@@ -388,6 +391,10 @@ source $HOME/personal_scripts/ytfb.sh
 
 ytmax() {
     ytz --max $1
+}
+
+ytzc() {
+  ytz --cookies $1
 }
 
 alias docker-compose="docker compose"
