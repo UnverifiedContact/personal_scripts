@@ -277,6 +277,7 @@ ytz() {
         --progress
         --newline
         --merge-output-format mkv
+        --remote-components ejs:github
         --sponsorblock-chapter all
         --use-postprocessor 'DeArrow:when=pre_process'
         -o '%(uploader,channel,uploader_id|40.40s)s - %(title)s [%(id)s].%(ext)s'
