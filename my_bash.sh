@@ -751,6 +751,14 @@ bait() {
         "$HOME/personal_scripts/bait_yt_analyse/ytprep_cli.py" "$@"
 }
 
+yt_ai_summary() {
+    [ -z "$1" ] && echo "usage: yt_ai_summary <url>" && return 1
+    json="$(ytdlp --dump-json "$1" 2>/dev/null)" || { echo "error"; return 1; }
+    summary="$(printf '%s' "$json" | jq -r '.["ai_summary"] // empty')"
+    [ -n "$summary" ] && printf '%s\n' "$summary" || echo "nothing found"
+}
+alias ais=yt_ai_summary
+
 source $HOME/personal_scripts/rebait/rebait.sh
 
 alias venv='source venv/bin/activate'
