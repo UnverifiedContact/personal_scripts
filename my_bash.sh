@@ -759,6 +759,14 @@ yt_ai_summary() {
 }
 alias ais=yt_ai_summary
 
+serve_here() {
+    port="${1:-6215}"
+    tmp=$(mktemp)
+    printf 'server.document-root="%s"\nserver.port=%s\ndir-listing.activate="enable"\n' "$PWD" "$port" > "$tmp"
+    lighttpd -D -f "$tmp"
+    rm -f "$tmp"
+}
+
 source $HOME/personal_scripts/rebait/rebait.sh
 
 alias venv='source venv/bin/activate'
