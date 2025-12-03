@@ -25,8 +25,31 @@ fi
 
 [[ -z "${NEWSBOAT_DB_BUP_DIR}" ]] && echo 'WARNING: NEWSBOAT_DB_BUP_DIR is not set.';
 
+start_nbserver() {
+    local logdir="$HOME/personal_scripts/nbserver/logs"
+    local logfile="$logdir/api_server.log"
+    mkdir -p "$logdir"
+    
+    set +m
+    python3 "$HOME/personal_scripts/nbserver/api_server.py" \
+        --db="$NEWSBOAT_DB_FILE" \
+        >>"$logfile" 2>&1 &
+    set -m
+    disown $! 2>/dev/null
+}
+
+review_news() {
+    local port=5001
+    start_nbserver
+    if [ -f "$HOME/IS_MOBILE" ] && command -v am >/dev/null 2>&1; then
+        ( sleep 2 && am start -a android.intent.action.VIEW -d "http://localhost:$port" org.mozilla.firefox ) &
+    fi
+}
+alias nr='review_news'
+
 START_SERVICES() {
     $HOME/personal_scripts/transcript_service/start_gunicorn.sh
+    start_nbserver
 }
 START_SERVICES;
 
@@ -586,12 +609,6 @@ is_port_in_use() { (echo > /dev/tcp/127.0.0.1/$1) >/dev/null 2>&1; }
 #     am start -a android.intent.action.VIEW -d "http://localhost:$port" org.mozilla.firefox
 # }
 
-review_news() {
-    local port=5001
-    ( sleep 2 && am start -a android.intent.action.VIEW -d "http://localhost:$port" org.mozilla.firefox ) &
-    python "$HOME/personal_scripts/nbserver/api_server.py" --db="$NEWSBOAT_DB_FILE"
-}
-alias nr='review_news'
 
 nbr() {
     backup_newsboat_cache
