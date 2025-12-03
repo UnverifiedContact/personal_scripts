@@ -13,7 +13,7 @@ if [ -f "$HOME/IS_MOBILE" ]; then
   source $PREFIX/etc/profile.d/start-services.sh
   sv-enable sshd
   sv-enable httpd
-  start_nginx_termux
+
 else
 	alias python=python3
 	xset b off # no beep
@@ -46,12 +46,6 @@ review_news() {
     fi
 }
 alias nr='review_news'
-
-START_SERVICES() {
-    $HOME/personal_scripts/transcript_service/start_gunicorn.sh
-    start_nbserver
-}
-START_SERVICES;
 
 ## news related functions
 export NEWSBOAT_DB_FILE="$HOME/newsboat/newsboat_cache.db"
@@ -790,5 +784,13 @@ serve_here() {
 }
 
 source $HOME/personal_scripts/rebait/rebait.sh
-
 alias venv='source venv/bin/activate'
+
+START_SERVICES() {
+    $HOME/personal_scripts/transcript_service/start_gunicorn.sh
+    start_nbserver
+    if [ -f "$HOME/IS_MOBILE" ] && command -v am >/dev/null 2>&1; then
+      start_nginx_termux
+    fi
+}
+START_SERVICES;
