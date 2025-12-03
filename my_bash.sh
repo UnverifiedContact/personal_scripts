@@ -25,6 +25,11 @@ fi
 
 [[ -z "${NEWSBOAT_DB_BUP_DIR}" ]] && echo 'WARNING: NEWSBOAT_DB_BUP_DIR is not set.';
 
+START_SERVICES() {
+    $HOME/personal_scripts/transcript_service/start_gunicorn.sh
+}
+START_SERVICES;
+
 ## news related functions
 export NEWSBOAT_DB_FILE="$HOME/newsboat/newsboat_cache.db"
 export NEWSBOAT_CONFIG_FILEPATH="$HOME/newsboat/newsboat_config"
