@@ -977,6 +977,8 @@
                     touchStartX = touch.clientX;
                     touchStartY = touch.clientY;
                     hasMoved = false;
+                    // Clear any long-press flag when starting a new touch
+                    card.dataset.longPressTriggered = 'false';
                 }, { passive: true });
                 
                 // Attach touchmove to detect scrolling
@@ -996,7 +998,7 @@
                     }
                 }, { passive: true });
                 
-                // Attach touchend for mobile (double tap) - only if it wasn't a scroll
+                // Attach touchend for mobile (double tap) - only if it wasn't a scroll or long-press
                 card.addEventListener('touchend', (e) => {
                     // Don't prevent default if it's a button
                     if (e.target.tagName === 'BUTTON') {
@@ -1006,8 +1008,11 @@
                         return;
                     }
                     
-                    // Only trigger interaction if it was a tap (not a scroll)
-                    if (!hasMoved && touchStartX !== null && touchStartY !== null) {
+                    // Don't trigger interaction if a long-press was detected (context menu opened)
+                    const longPressTriggered = card.dataset.longPressTriggered === 'true';
+                    
+                    // Only trigger interaction if it was a tap (not a scroll) and not a long-press
+                    if (!hasMoved && !longPressTriggered && touchStartX !== null && touchStartY !== null) {
                         e.preventDefault();
                         handleCardInteraction(e, itemId, card);
                     }
@@ -1016,6 +1021,7 @@
                     touchStartX = null;
                     touchStartY = null;
                     hasMoved = false;
+                    card.dataset.longPressTriggered = 'false';
                 }, { passive: false });
                 
                 // Attach click events for desktop (double click)
@@ -1425,8 +1431,11 @@
         document.addEventListener('touchstart', (e) => {
             const itemCard = e.target.closest('.item-card');
             if (!itemCard) return;
+            if (e.target.tagName === 'BUTTON') return;
 
             longPressTimer = setTimeout(() => {
+                // Mark that long-press was triggered to prevent keep toggle
+                itemCard.dataset.longPressTriggered = 'true';
                 showContextMenu(e, itemCard);
             }, LONG_PRESS_DURATION);
         });
