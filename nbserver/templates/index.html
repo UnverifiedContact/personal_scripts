@@ -15,6 +15,8 @@
             --accent-blue: #2196F3;
             --accent-red: #f44336;
             --accent-green: #4CAF50;
+            --accent-yellow: #FFD700;
+            --accent-yellow-glow: rgba(255, 215, 0, 0.6);
             --hover-bg: #3d3d3d;
         }
 
@@ -127,11 +129,18 @@
             flex-direction: column;
             gap: 0.3em;
             margin-bottom: 0.2em;
-            cursor: pointer;
         }
 
         .item-card.kept {
             background-color: rgba(76, 175, 80, 0.1);
+        }
+
+        /* Starred item styling - amber/orange with subtle diagonal stripe pattern */
+        .item-card.starred {
+            background-color: rgba(255, 152, 0, 0.14);
+            background-image: 
+                repeating-linear-gradient(45deg, transparent, transparent 12px, rgba(255, 152, 0, 0.04) 12px, rgba(255, 152, 0, 0.04) 24px);
+            position: relative;
         }
 
         .item-header {
@@ -207,6 +216,16 @@
                 padding: 0;
                 margin: 0;
                 gap: 0;
+            }
+
+            .item-card.starred {
+                background-color: rgba(255, 152, 0, 0.14);
+                background-image: 
+                    repeating-linear-gradient(45deg, transparent, transparent 12px, rgba(255, 152, 0, 0.04) 12px, rgba(255, 152, 0, 0.04) 24px);
+            }
+
+            .item-card.starred>*:first-child {
+                padding-left: 12px;
             }
 
             .item-card>* {
@@ -665,6 +684,12 @@
     <!-- Context Menu -->
     <div id="contextMenu" class="context-menu">
         <div class="context-menu-item">
+            <a href="#" id="contextToggleStar">
+                <i class="far fa-star" id="contextStarIcon"></i>
+                <span id="contextStarText">Star</span>
+            </a>
+        </div>
+        <div class="context-menu-item">
             <a href="#" id="contextCopyLink">
                 <i class="fas fa-copy"></i>
                 Copy Link
@@ -774,16 +799,28 @@
                 if (response.ok) {
                     const newUnread = data.data.unread;
                     const isKept = newUnread === 0; // unread=0 means kept
+                    const isStarred = data.data.starred === true;
+                    const flags = data.data.flags || '';
+
+                    // Update flags and starred state
+                    element.dataset.flags = flags;
+                    element.dataset.starred = isStarred.toString();
 
                     if (isKept) {
                         keptItems.add(itemId);
                         element.classList.add('kept');
+                        // Remove starred styling if it exists (shouldn't happen, but just in case)
+                        if (!isStarred) {
+                            element.classList.remove('starred');
+                        }
                         const button = element.querySelector('.keep-button');
                         button.classList.add('kept');
                         button.textContent = 'Kept';
                     } else {
                         keptItems.delete(itemId);
                         element.classList.remove('kept');
+                        // Remove starred styling when unkept (starred is super form of kept)
+                        element.classList.remove('starred');
                         const button = element.querySelector('.keep-button');
                         button.classList.remove('kept');
                         button.textContent = 'Keep';
@@ -795,6 +832,62 @@
             } catch (error) {
                 console.error('Error toggling keep status:', error);
                 showMessage('Error updating item status: ' + error.message, 'error');
+            }
+        }
+
+        async function toggleStarred(itemId, element) {
+            try {
+                const isStarred = element.dataset.starred === 'true';
+                const method = isStarred ? 'DELETE' : 'POST';
+                
+                const response = await fetch(`${API_BASE_URL}/items/${itemId}/starred`, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    const newStarred = data.data.starred;
+                    const newUnread = data.data.unread;
+                    const isKept = newUnread === 0;
+
+                    // Update starred state
+                    element.dataset.starred = newStarred.toString();
+                    element.dataset.flags = data.data.flags || '';
+                    
+                    // Update visual styling
+                    if (newStarred) {
+                        // Starring: set to kept and show starred styling
+                        element.classList.remove('kept');
+                        element.classList.add('starred');
+                        keptItems.add(itemId);
+                    } else {
+                        // Unstarring: remove from kept and remove starred styling
+                        element.classList.remove('starred');
+                        element.classList.remove('kept');
+                        keptItems.delete(itemId);
+                    }
+
+                    // Update keep button state
+                    const button = element.querySelector('.keep-button');
+                    if (isKept) {
+                        button.classList.add('kept');
+                        button.textContent = 'Kept';
+                    } else {
+                        button.classList.remove('kept');
+                        button.textContent = 'Keep';
+                    }
+
+                    updateCounters();
+                } else {
+                    showMessage(data.message || 'Failed to update starred status', 'error');
+                }
+            } catch (error) {
+                console.error('Error toggling starred status:', error);
+                showMessage('Error updating starred status: ' + error.message, 'error');
             }
         }
 
@@ -833,12 +926,21 @@
             return isYouTubeUrl(url) ? extractYouTubeVideoId(url) : '';
         }
 
+        function isItemStarred(item) {
+            // Check if item has 'S' or 's' in flags
+            const flags = item.flags || '';
+            return flags.includes('S') || flags.includes('s');
+        }
+
         function createItemCard(item) {
             // Set kept state based on unread flag: unread=0 means kept
             const isKept = item.unread === 0;
             if (isKept) {
                 keptItems.add(item.id);
             }
+
+            // Check if item is starred
+            const isStarred = isItemStarred(item);
 
             const date = new Date(item.pubDate);
             const formattedDate = date.toLocaleDateString('en-GB', {
@@ -850,8 +952,16 @@
             // Get YouTube ID if this is a YouTube link
             const youtubeId = getYouTubeIdForCard(item.url);
 
+            // Determine card classes: starred takes precedence over kept for styling
+            let cardClasses = '';
+            if (isStarred) {
+                cardClasses = 'starred';
+            } else if (isKept) {
+                cardClasses = 'kept';
+            }
+
             return `
-                <div class="item-card ${isKept ? 'kept' : ''}" 
+                <div class="item-card ${cardClasses}" 
                      data-id="${item.id}"
                      data-youtube-id="${youtubeId}"
                      data-channel="${item.channel_name || ''}" 
@@ -861,7 +971,8 @@
                      data-url="${item.url}"
                      data-channel-url="${item.channel_url}"
                      data-feed-url="${item.feedurl}"
-                     onclick="handleCardClick(event, ${item.id}, this)">
+                     data-starred="${isStarred}"
+                     data-flags="${item.flags || ''}">
                     <div class="item-header">
                         <div class="item-author">
                             ${item.channel_name || 'Loading...'}
@@ -882,12 +993,73 @@
             `;
         }
 
-        function handleCardClick(event, itemId, element) {
-            // If the click was on a button, don't toggle
+        // Double-tap detection for starring items
+        let tapTimer = null;
+        let lastTapTime = 0;
+        let lastTapElement = null;
+        const DOUBLE_TAP_DELAY = 300; // milliseconds
+
+        function handleCardInteraction(event, itemId, element) {
+            // If the interaction was on a button, don't do anything
             if (event.target.tagName === 'BUTTON') {
                 return;
             }
-            toggleKeep(itemId, element);
+
+            const currentTime = Date.now();
+            const isDoubleTap = (currentTime - lastTapTime < DOUBLE_TAP_DELAY) && 
+                                (lastTapElement === element);
+
+            if (isDoubleTap) {
+                // Clear the pending single tap
+                clearTimeout(tapTimer);
+                tapTimer = null;
+                lastTapTime = 0;
+                lastTapElement = null;
+                
+                // Handle double tap - toggle starred
+                toggleStarred(itemId, element);
+            } else {
+                // Clear any existing timer
+                clearTimeout(tapTimer);
+                
+                // Set up single tap handler with delay
+                tapTimer = setTimeout(() => {
+                    toggleKeep(itemId, element);
+                    tapTimer = null;
+                    lastTapTime = 0;
+                    lastTapElement = null;
+                }, DOUBLE_TAP_DELAY);
+                
+                lastTapTime = currentTime;
+                lastTapElement = element;
+            }
+        }
+
+        // Legacy function name for backwards compatibility
+        function handleCardClick(event, itemId, element) {
+            handleCardInteraction(event, itemId, element);
+        }
+
+        // Attach event listeners to all item cards for double-tap/click detection
+        function attachCardEventListeners() {
+            const itemCards = document.querySelectorAll('.item-card');
+            itemCards.forEach(card => {
+                const itemId = parseInt(card.dataset.id);
+                
+                // Attach touch events for mobile (double tap)
+                card.addEventListener('touchend', (e) => {
+                    // Don't prevent default if it's a button
+                    if (e.target.tagName !== 'BUTTON') {
+                        e.preventDefault();
+                        handleCardInteraction(e, itemId, card);
+                    }
+                }, { passive: false });
+                
+                // Attach click events for desktop (double click)
+                card.addEventListener('click', (e) => {
+                    handleCardInteraction(e, itemId, card);
+                });
+            });
         }
 
         function scrollToLastKeptItem() {
@@ -938,6 +1110,10 @@
                     const container = document.getElementById('itemsContainer');
                     if (data.status === 'success') {
                         container.innerHTML = data.data.map(item => createItemCard(item)).join('');
+                        
+                        // Attach event listeners for double-tap detection
+                        attachCardEventListeners();
+                        
                         showMessage('Items refreshed successfully');
                         updateCounters();
 
@@ -1149,7 +1325,7 @@
 
             // Ensure menu stays within viewport
             const menuWidth = 200; // min-width from CSS
-            const menuHeight = 250; // approximate height
+            const menuHeight = 300; // approximate height (increased for star option)
             const viewportWidth = window.innerWidth;
             const viewportHeight = window.innerHeight;
 
@@ -1224,6 +1400,27 @@
             document.getElementById('contextOpenLink').href = itemUrl;
             document.getElementById('contextOpenChannel').href = channelUrl;
             document.getElementById('contextOpenFeed').href = feedUrl;
+
+            // Update star/unstar option based on current state
+            const isStarred = item.dataset.starred === 'true';
+            const starIcon = document.getElementById('contextStarIcon');
+            const starText = document.getElementById('contextStarText');
+            
+            if (isStarred) {
+                starIcon.classList.add('fas');
+                starIcon.classList.remove('far');
+                starText.textContent = 'Unstar';
+            } else {
+                starIcon.classList.add('far');
+                starIcon.classList.remove('fas');
+                starText.textContent = 'Star';
+            }
+
+            document.getElementById('contextToggleStar').onclick = async (e) => {
+                e.preventDefault();
+                await toggleStarred(itemId, item);
+                hideContextMenu();
+            };
 
             document.getElementById('contextDelete').onclick = async (e) => {
                 e.preventDefault();

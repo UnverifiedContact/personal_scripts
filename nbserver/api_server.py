@@ -181,6 +181,11 @@ def get_item_flags(item_id):
         return ''
     return row['flags']
 
+def is_item_starred(item_id):
+    """Check if an item is starred (has 'S' flag)."""
+    flags = get_item_flags(item_id)
+    return 'S' in flags or 's' in flags
+
 def update_item_flags(item_id, flags_str):
     """Update the flags for an item. Normalizes the flags before writing. Returns True if rows were updated."""
     normalized = normalize_flags(flags_str)
@@ -211,28 +216,39 @@ def mark_item_as_deleted(item_id):
         return False
 
 def toggle_item_unread(item_id):
-    """Toggle the unread flag for an item in the database, simplified."""
+    """Toggle the unread flag for an item in the database. If setting to unread=1 (unkept), also remove star."""
     try:
         conn = get_db()
         cursor = conn.cursor()
 
+        # Get current unread value
+        cursor.execute("SELECT unread FROM rss_item WHERE id = ? AND deleted = 0", (item_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        
+        current_unread = row['unread']
+        new_unread = 1 if current_unread == 0 else 0
+
         # Toggle unread: unread = 1 -> 0, unread = 0 -> 1
         cursor.execute("""
             UPDATE rss_item
-            SET unread = CASE unread WHEN 0 THEN 1 ELSE 0 END
+            SET unread = ?
             WHERE id = ? AND deleted = 0
-        """, (item_id,))
+        """, (new_unread, item_id))
         
         success = cursor.rowcount > 0
+        
+        # If setting to unread=1 (unkept), remove the star
+        if success and new_unread == 1:
+            set_item_starred(item_id, False)
+        
         conn.commit()
         
         if not success:
             return None
 
-        # Get the new unread value
-        cursor.execute("SELECT unread FROM rss_item WHERE id = ?", (item_id,))
-        row = cursor.fetchone()
-        return row['unread'] if row else None
+        return new_unread
     except Exception as e:
         print(f"Error in toggle_item_unread: {str(e)}")
         return None
@@ -267,27 +283,63 @@ def handle_toggle_unread(item_id):
     """Handle POST request to toggle unread status for a single item."""
     new_unread = toggle_item_unread(item_id)
     if new_unread is not None:
+        # Get updated flags in case star was removed
+        updated_flags = get_item_flags(item_id)
+        is_starred = 'S' in updated_flags or 's' in updated_flags
         return jsonify({
             'status': 'success',
             'message': 'Unread status updated successfully',
-            'data': {'unread': new_unread}
+            'data': {
+                'unread': new_unread,
+                'flags': updated_flags,
+                'starred': is_starred
+            }
         })
     return jsonify({
         'status': 'error',
         'message': 'Item not found or failed to update'
     }), 404
 
-def set_item_star(item_id):
-    """Add the 'S' flag to an item's flags."""
-    current_flags = get_item_flags(item_id)
-    new_flags = add_flag(current_flags, 'S')
-    return update_item_flags(item_id, new_flags)
-
-def remove_item_star(item_id):
-    """Remove the 'S' flag from an item's flags."""
+def remove_item_star_flag_only(item_id):
+    """Remove the 'S' flag from an item's flags (without changing unread status)."""
     current_flags = get_item_flags(item_id)
     new_flags = remove_flag(current_flags, 'S')
     return update_item_flags(item_id, new_flags)
+
+def set_item_star(item_id):
+    """Add the 'S' flag to an item's flags and set unread=0 (kept)."""
+    current_flags = get_item_flags(item_id)
+    new_flags = add_flag(current_flags, 'S')
+    flags_success = update_item_flags(item_id, new_flags)
+    
+    # Also set unread=0 (kept) when starring
+    if flags_success:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE rss_item SET unread = 0 WHERE id = ? AND deleted = 0", (item_id,))
+        conn.commit()
+    
+    return flags_success
+
+def set_item_starred(item_id, starred):
+    """Set or unset the starred status for an item. Returns True if successful."""
+    if starred:
+        return set_item_star(item_id)
+    else:
+        return remove_item_star_flag_only(item_id)
+
+def remove_item_star(item_id):
+    """Remove the 'S' flag from an item's flags and set unread=1 (not kept)."""
+    flags_success = remove_item_star_flag_only(item_id)
+    
+    # Also set unread=1 (not kept) when unstarring
+    if flags_success:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE rss_item SET unread = 1 WHERE id = ? AND deleted = 0", (item_id,))
+        conn.commit()
+    
+    return flags_success
 
 @app.route('/api/items/<int:item_id>', methods=['GET', 'DELETE', 'POST', 'OPTIONS'])
 def handle_item(item_id):
@@ -328,10 +380,20 @@ def handle_item_starred(item_id):
         success = set_item_star(item_id)
         if success:
             updated_flags = get_item_flags(item_id)
+            # Get updated unread status
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT unread FROM rss_item WHERE id = ?", (item_id,))
+            row = cursor.fetchone()
+            unread_status = row['unread'] if row else None
             return jsonify({
                 'status': 'success',
                 'message': 'Starred flag set successfully',
-                'data': {'flags': updated_flags}
+                'data': {
+                    'flags': updated_flags,
+                    'starred': True,
+                    'unread': unread_status
+                }
             }), 200
         return jsonify({
             'status': 'error',
@@ -343,10 +405,20 @@ def handle_item_starred(item_id):
         success = remove_item_star(item_id)
         if success:
             updated_flags = get_item_flags(item_id)
+            # Get current unread status (unchanged when unstarring)
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT unread FROM rss_item WHERE id = ?", (item_id,))
+            row = cursor.fetchone()
+            unread_status = row['unread'] if row else None
             return jsonify({
                 'status': 'success',
                 'message': 'Starred flag removed successfully',
-                'data': {'flags': updated_flags}
+                'data': {
+                    'flags': updated_flags,
+                    'starred': False,
+                    'unread': unread_status
+                }
             }), 200
         return jsonify({
             'status': 'error',
