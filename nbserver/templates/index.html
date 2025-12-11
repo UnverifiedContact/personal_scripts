@@ -50,23 +50,6 @@
             right: 0;
         }
 
-        @media (min-width: 768px) {
-            body {
-                padding: 0;
-            }
-
-            .header {
-                padding: 0;
-            }
-
-            .action-bar {
-                padding: 16px 32px;
-            }
-
-            .items-container {
-                padding: 1em 2em;
-            }
-        }
 
         .action-bar {
             display: grid;
@@ -202,76 +185,6 @@
             align-items: center;
         }
 
-        /* Desktop table layout */
-        @media (min-width: 768px) {
-            .items-container {
-                display: table;
-                width: 100%;
-                border-collapse: collapse;
-            }
-
-            .item-card {
-                display: table-row;
-                background: none;
-                padding: 0;
-                margin: 0;
-                gap: 0;
-            }
-
-            .item-card.starred {
-                background-color: rgba(255, 152, 0, 0.14);
-                background-image: 
-                    repeating-linear-gradient(45deg, transparent, transparent 12px, rgba(255, 152, 0, 0.04) 12px, rgba(255, 152, 0, 0.04) 24px);
-            }
-
-            .item-card.starred>*:first-child {
-                padding-left: 12px;
-            }
-
-            .item-card>* {
-                display: table-cell;
-                padding: 12px;
-                vertical-align: middle;
-                border-bottom: 1px solid var(--border-color);
-            }
-
-            .item-header {
-                display: none;
-            }
-
-            .item-author {
-                display: table-cell !important;
-                font-size: 1em;
-                font-weight: 600;
-                width: auto;
-            }
-
-            .item-author a {
-                display: inline;
-                width: fit-content;
-            }
-
-            .item-title {
-                font-size: 1em;
-                margin: 0;
-            }
-
-            .item-date {
-                font-size: 1em;
-            }
-
-            .item-actions {
-                display: table-cell;
-                text-align: left;
-                width: 120px;
-            }
-
-            .keep-button {
-                padding: 12px 20px;
-                font-size: 15px;
-                min-width: 100px;
-            }
-        }
 
         .refresh-button,
         .clean-button,
