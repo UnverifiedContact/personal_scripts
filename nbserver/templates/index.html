@@ -1093,16 +1093,16 @@
             console.log('Total items found:', items.length);
 
             items.forEach(item => {
-                console.log('Item:', {
-                    id: item.dataset.id,
-                    classes: item.classList.toString(),
-                    isKept: item.classList.contains('kept')
-                });
+                const itemId = parseInt(item.dataset.id);
+                // Check if item is in keptItems Set (source of truth) OR if it's starred (has starred class or data attribute)
+                // Starred items are a superset of kept items, so they should also be retained
+                const isInKeptItemsSet = keptItems.has(itemId);
+                const isStarred = item.classList.contains('starred') || item.dataset.starred === 'true';
+                const shouldKeep = isInKeptItemsSet || isStarred;
 
-                if (!item.classList.contains('kept')) {
-                    const id = item.dataset.id;
-                    if (id) {
-                        nonKeptIds.push(parseInt(id));
+                if (!shouldKeep) {
+                    if (itemId) {
+                        nonKeptIds.push(itemId);
                     }
                 }
             });
