@@ -962,13 +962,60 @@
             itemCards.forEach(card => {
                 const itemId = parseInt(card.dataset.id);
                 
-                // Attach touch events for mobile (double tap)
+                // Track touch state for this card to distinguish taps from scrolls
+                let touchStartX = null;
+                let touchStartY = null;
+                let hasMoved = false;
+                const MOVE_THRESHOLD = 10; // pixels - if moved more than this, it's a scroll
+                
+                // Attach touchstart to track initial touch position
+                card.addEventListener('touchstart', (e) => {
+                    if (e.target.tagName === 'BUTTON') {
+                        return;
+                    }
+                    const touch = e.touches[0];
+                    touchStartX = touch.clientX;
+                    touchStartY = touch.clientY;
+                    hasMoved = false;
+                }, { passive: true });
+                
+                // Attach touchmove to detect scrolling
+                card.addEventListener('touchmove', (e) => {
+                    if (e.target.tagName === 'BUTTON') {
+                        return;
+                    }
+                    if (touchStartX !== null && touchStartY !== null) {
+                        const touch = e.touches[0];
+                        const deltaX = Math.abs(touch.clientX - touchStartX);
+                        const deltaY = Math.abs(touch.clientY - touchStartY);
+                        
+                        // If moved more than threshold, it's a scroll
+                        if (deltaX > MOVE_THRESHOLD || deltaY > MOVE_THRESHOLD) {
+                            hasMoved = true;
+                        }
+                    }
+                }, { passive: true });
+                
+                // Attach touchend for mobile (double tap) - only if it wasn't a scroll
                 card.addEventListener('touchend', (e) => {
                     // Don't prevent default if it's a button
-                    if (e.target.tagName !== 'BUTTON') {
+                    if (e.target.tagName === 'BUTTON') {
+                        touchStartX = null;
+                        touchStartY = null;
+                        hasMoved = false;
+                        return;
+                    }
+                    
+                    // Only trigger interaction if it was a tap (not a scroll)
+                    if (!hasMoved && touchStartX !== null && touchStartY !== null) {
                         e.preventDefault();
                         handleCardInteraction(e, itemId, card);
                     }
+                    
+                    // Reset touch state
+                    touchStartX = null;
+                    touchStartY = null;
+                    hasMoved = false;
                 }, { passive: false });
                 
                 // Attach click events for desktop (double click)
