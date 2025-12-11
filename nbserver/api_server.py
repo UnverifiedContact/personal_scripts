@@ -70,7 +70,8 @@ def get_non_deleted_items():
                 rss_item.pubDate,
                 rss_item.content,
                 rss_item.author,
-                rss_item.feedurl
+                rss_item.feedurl,
+                rss_item.flags
             FROM
                 rss_item
             INNER JOIN
@@ -94,7 +95,8 @@ def get_non_deleted_items():
                 'unread': row['unread'],
                 'pubDate': pub_date,
                 'content': row['content'],
-                'feedurl': row['feedurl']
+                'feedurl': row['feedurl'],
+                'flags': row['flags']
             })
         
         return items
@@ -120,6 +122,7 @@ def get_items():
             'message': str(e)
         }), 500
 
+
 def get_item_by_id(item_id):
     """Fetch a single item by ID from the database."""
     try:
@@ -136,7 +139,8 @@ def get_item_by_id(item_id):
                 unread,
                 pubDate,
                 content,
-                feedurl
+                feedurl,
+                flags
             FROM 
                 rss_item
             WHERE 
@@ -160,11 +164,31 @@ def get_item_by_id(item_id):
             'unread': row['unread'],
             'pubDate': pub_date,
             'content': row['content'],
-            'feedurl': row['feedurl']
+            'feedurl': row['feedurl'],
+            'flags': row['flags']
         }
     except Exception as e:
         print(f"Error in get_item_by_id: {str(e)}")
         return None
+
+def get_item_flags(item_id):
+    """Get the flags string for an item. Always returns a string, empty string if NULL or not found."""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT flags FROM rss_item WHERE id = ? AND deleted = 0", (item_id,))
+    row = cursor.fetchone()
+    if not row or row['flags'] is None:
+        return ''
+    return row['flags']
+
+def update_item_flags(item_id, flags_str):
+    """Update the flags for an item. Normalizes the flags before writing. Returns True if rows were updated."""
+    normalized = normalize_flags(flags_str)
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE rss_item SET flags = ? WHERE id = ? AND deleted = 0", (normalized, item_id))
+    conn.commit()
+    return cursor.rowcount > 0
 
 def mark_item_as_deleted(item_id):
     """Mark an item as deleted in the database."""
@@ -253,6 +277,18 @@ def handle_toggle_unread(item_id):
         'message': 'Item not found or failed to update'
     }), 404
 
+def set_item_star(item_id):
+    """Add the 'S' flag to an item's flags."""
+    current_flags = get_item_flags(item_id)
+    new_flags = add_flag(current_flags, 'S')
+    return update_item_flags(item_id, new_flags)
+
+def remove_item_star(item_id):
+    """Remove the 'S' flag from an item's flags."""
+    current_flags = get_item_flags(item_id)
+    new_flags = remove_flag(current_flags, 'S')
+    return update_item_flags(item_id, new_flags)
+
 @app.route('/api/items/<int:item_id>', methods=['GET', 'DELETE', 'POST', 'OPTIONS'])
 def handle_item(item_id):
     """Route handler that delegates to the appropriate method handler."""
@@ -268,6 +304,55 @@ def handle_item(item_id):
     handler = method_handlers.get(request.method)
     if handler:
         return handler(item_id)
+    return jsonify({
+        'status': 'error',
+        'message': 'Method not allowed'
+    }), 405
+
+@app.route('/api/items/<int:item_id>/starred', methods=['POST', 'DELETE', 'OPTIONS'])
+def handle_item_starred(item_id):
+    """Handle setting or removing the starred flag for an item."""
+    if request.method == 'OPTIONS':
+        return '', 200
+    
+    # Verify item exists
+    item = get_item_by_id(item_id)
+    if item is None:
+        return jsonify({
+            'status': 'error',
+            'message': 'Item not found'
+        }), 404
+    
+    if request.method == 'POST':
+        # Set starred flag
+        success = set_item_star(item_id)
+        if success:
+            updated_flags = get_item_flags(item_id)
+            return jsonify({
+                'status': 'success',
+                'message': 'Starred flag set successfully',
+                'data': {'flags': updated_flags}
+            }), 200
+        return jsonify({
+            'status': 'error',
+            'message': 'Failed to set starred flag'
+        }), 500
+    
+    elif request.method == 'DELETE':
+        # Remove starred flag
+        success = remove_item_star(item_id)
+        if success:
+            updated_flags = get_item_flags(item_id)
+            return jsonify({
+                'status': 'success',
+                'message': 'Starred flag removed successfully',
+                'data': {'flags': updated_flags}
+            }), 200
+        return jsonify({
+            'status': 'error',
+            'message': 'Failed to remove starred flag'
+        }), 500
+    
     return jsonify({
         'status': 'error',
         'message': 'Method not allowed'
@@ -353,6 +438,26 @@ def determine_origin(url):
     
     parsed = urlparse(url)
     return parsed.hostname or ""
+
+def normalize_flags(flags_str):
+    """Normalize flags: filter to A-Z/a-z, remove duplicates, sort alphabetically. Returns None if not a string or empty."""
+    if not isinstance(flags_str, str):
+        return None
+    if not flags_str:
+        return None
+    chars = [c for c in flags_str if c.isalpha() and ((c >= 'A' and c <= 'Z') or (c >= 'a' and c <= 'z'))]
+    if not chars:
+        return None
+    unique = list(dict.fromkeys(chars))
+    result = ''.join(sorted(unique))
+    return result if result else None
+
+def add_flag(flags_str, char):
+    flags_str = flags_str or ''
+    return flags_str if char in flags_str else flags_str + char
+
+def remove_flag(flags_str, char):
+    return (flags_str or '').replace(char, '')
     
 # business logic
 def process_dearrow(items):
