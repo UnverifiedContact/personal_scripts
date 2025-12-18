@@ -45,8 +45,29 @@ def get_db():
             exit(1)
     return thread_local.connection
 
+def column_exists(conn, table_name, column_name):
+    cursor = conn.cursor()
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    columns = [col[1] for col in cursor.fetchall()]
+    return column_name in columns
+
+def initialize_schema():
+    conn = get_db()
+    cursor = conn.cursor()
+
+    if not column_exists(conn, 'rss_item', 'is_clickbait'):
+        cursor.execute("ALTER TABLE rss_item ADD COLUMN is_clickbait BOOLEAN DEFAULT NULL")
+        print("Added column: rss_item.is_clickbait")
+
+    if not column_exists(conn, 'rss_item', 'fixed_title'):
+        cursor.execute("ALTER TABLE rss_item ADD COLUMN fixed_title TEXT DEFAULT NULL")
+        print("Added column: rss_item.fixed_title")
+    
+    conn.commit()
+
 # Test database connection immediately
 get_db()
+initialize_schema()
 
 @app.route('/')
 def index():
@@ -498,11 +519,18 @@ def handle_batch_delete():
 def process_items(items):
     #items = process_dearrow(items)
     items = process_add_origin(items)
+    items = process_add_youtube_id(items)
     return items
 
 def process_add_origin(items):
     for item in items:
         item['origin'] = determine_origin(item['url'])
+    return items
+
+def process_add_youtube_id(items):
+    for item in items:
+        if youtube_id := extract_youtube_video_id(item['url']):
+            item['youtube_id'] = youtube_id
     return items
 
 def determine_origin(url):
