@@ -603,6 +603,9 @@ is_port_in_use() { (echo > /dev/tcp/127.0.0.1/$1) >/dev/null 2>&1; }
 #     am start -a android.intent.action.VIEW -d "http://localhost:$port" org.mozilla.firefox
 # }
 
+nbserver_db_prepare() {
+    curl -s -X GET http://localhost:5001/api/maintenance/prepare | jq -r '.message'
+}
 
 nbr() {
     backup_newsboat_cache
@@ -614,10 +617,6 @@ nbr() {
       --title "Open Localhost" \
       --content "NBServer Sync Complete" \
       --action "am start -a android.intent.action.VIEW -d 'http://localhost:5001' org.mozilla.firefox"
-}
-
-nbserver_db_prepare() {
-    echo "$(curl -s -X GET http://localhost:5001/api/maintenance/prepare)"
 }
 
 export OPENSUBTITLES_USERNAME='unverifiedcontact'
