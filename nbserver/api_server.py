@@ -75,27 +75,33 @@ def extract_youtube_video_id(url):
     return None
 
 def populate_youtube_ids():
-    """Populate youtube_id for all non-deleted items."""
+    """Populate youtube_id for all non-deleted items. Returns number of changed rows."""
     conn = get_db()
     cursor = conn.cursor()
     
     cursor.execute("""
-        SELECT id, url FROM rss_item 
+        SELECT id, url, youtube_id FROM rss_item 
         WHERE deleted = 0
     """)
+    
+    changed_count = 0
     
     for row in cursor.fetchall():
         item_id = row['id']
         url = row['url']
-        youtube_id = extract_youtube_video_id(url)
+        current_youtube_id = row['youtube_id']
+        new_youtube_id = extract_youtube_video_id(url)
         
         cursor.execute("""
             UPDATE rss_item 
             SET youtube_id = ? 
             WHERE id = ?
-        """, (youtube_id, item_id))
+        """, (new_youtube_id, item_id))
+        changed_count += 1
     
     conn.commit()
+    print(f"Populated YouTube IDs: {changed_count} changed")
+    return changed_count
 
 def initialize_schema():
     conn = get_db()
@@ -105,7 +111,7 @@ def initialize_schema():
         cursor.execute("ALTER TABLE rss_item ADD COLUMN is_clickbait BOOLEAN DEFAULT NULL")
         print("Added column: rss_item.is_clickbait")
 
-    if not column_exists(conn, 'rss_item', 'fixed_title'):
+    if not column_exists(conn, 'rss_item', 'rebait_title'):
         cursor.execute("ALTER TABLE rss_item ADD COLUMN rebait_title TEXT DEFAULT NULL")
         print("Added column: rss_item.fixed_title")
     
@@ -117,7 +123,6 @@ def initialize_schema():
         
     conn.commit()
     populate_youtube_ids()
-    
     conn.commit()
 
 # Test database connection immediately
@@ -153,7 +158,8 @@ def get_non_deleted_items(only_pending_clickbait=False):
                 rss_item.author,
                 rss_item.feedurl,
                 rss_item.flags,
-                rss_item.is_clickbait
+                rss_item.is_clickbait,
+                rss_item.youtube_id
             FROM
                 rss_item
             INNER JOIN
@@ -167,7 +173,7 @@ def get_non_deleted_items(only_pending_clickbait=False):
         for row in rows:
             pub_date = datetime.fromtimestamp(row['pubDate']).strftime('%Y-%m-%d %H:%M:%S')
             
-            items.append({
+            item = {
                 'id': row['id'],
                 'channel_name': row['channel_name'],
                 'channel_url': row['channel_url'],
@@ -180,8 +186,11 @@ def get_non_deleted_items(only_pending_clickbait=False):
                 'content': row['content'],
                 'feedurl': row['feedurl'],
                 'flags': row['flags'],
-                'is_clickbait': row['is_clickbait']
-            })
+                'is_clickbait': row['is_clickbait'],
+                **({'youtube_id': row['youtube_id']} if row['youtube_id'] is not None else {})
+            }
+            
+            items.append(item)
         
         return items
     except Exception as e:
@@ -594,36 +603,13 @@ def handle_batch_delete():
         'message': 'Failed to delete items'
     }), 500
 
-def populate_youtube_ids():
-    """Populate youtube_id for all non-deleted items."""
-    conn = get_db()
-    cursor = conn.cursor()
-    
-    cursor.execute("""
-        SELECT id, url FROM rss_item 
-        WHERE deleted = 0
-    """)
-    
-    for row in cursor.fetchall():
-        item_id = row['id']
-        url = row['url']
-        youtube_id = extract_youtube_video_id(url)
-        
-        cursor.execute("""
-            UPDATE rss_item 
-            SET youtube_id = ? 
-            WHERE id = ?
-        """, (youtube_id, item_id))
-    
-    conn.commit()
-
 @app.route('/api/maintenance/prepare', methods=['GET'])
 def maintenance_prepare():
     """Prompt from a external script to prepare database. Perform any maintenance tasks here."""
-    populate_youtube_ids()
+    changed_count = populate_youtube_ids()
     return jsonify({
         'status': 'success',
-        'message': 'Database prepared successfully'
+        'message': f'Updated {changed_count} records with youtube id',
     })
 
 def validate_clickbait_request():
