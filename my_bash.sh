@@ -608,11 +608,16 @@ nbr() {
     backup_newsboat_cache
     echo "Scanning..."
     newsboat -c "$NEWSBOAT_DB_FILE" -C "$NEWSBOAT_CONFIG_FILEPATH" -u "$NEWSBOAT_URLS_FILE" -x reload print-unread
+    nbserver_db_prepare
     termux-vibrate
     termux-notification \
       --title "Open Localhost" \
       --content "NBServer Sync Complete" \
       --action "am start -a android.intent.action.VIEW -d 'http://localhost:5001' org.mozilla.firefox"
+}
+
+nbserver_db_prepare() {
+    echo "$(curl -s -X GET http://localhost:5001/api/maintenance/prepare)"
 }
 
 export OPENSUBTITLES_USERNAME='unverifiedcontact'
