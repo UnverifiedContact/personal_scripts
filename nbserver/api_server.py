@@ -617,7 +617,7 @@ def populate_youtube_ids():
     
     conn.commit()
 
-@app.route('/api/maintenance/prepare', methods=['POST', 'OPTIONS'])
+@app.route('/api/maintenance/prepare', methods=['GET'])
 def maintenance_prepare():
     """Prompt from a external script to prepare database. Perform any maintenance tasks here."""
     populate_youtube_ids()
