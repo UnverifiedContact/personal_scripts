@@ -51,6 +51,52 @@ def column_exists(conn, table_name, column_name):
     columns = [col[1] for col in cursor.fetchall()]
     return column_name in columns
 
+def extract_youtube_video_id(url):
+    parsed = urlparse(url)
+    
+    if parsed.hostname in ['www.youtube.com', 'youtube.com', 'm.youtube.com']:
+        # Try to get ID from ?v=VIDEO_ID
+        qs = parse_qs(parsed.query)
+        if 'v' in qs:
+            return qs['v'][0]
+        # Check for YouTube Shorts format: /shorts/VIDEO_ID
+        parts = parsed.path.split('/')
+        if 'shorts' in parts:
+            shorts_index = parts.index('shorts')
+            if shorts_index + 1 < len(parts) and parts[shorts_index + 1]:
+                return parts[shorts_index + 1]
+        # Otherwise, get last part of path if it's embed or v
+        if parts[-2] in ['embed', 'v']:
+            return parts[-1]
+    
+    if parsed.hostname == 'youtu.be':
+        return parsed.path.lstrip('/')
+    
+    return None
+
+def populate_youtube_ids():
+    """Populate youtube_id for all non-deleted items."""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT id, url FROM rss_item 
+        WHERE deleted = 0
+    """)
+    
+    for row in cursor.fetchall():
+        item_id = row['id']
+        url = row['url']
+        youtube_id = extract_youtube_video_id(url)
+        
+        cursor.execute("""
+            UPDATE rss_item 
+            SET youtube_id = ? 
+            WHERE id = ?
+        """, (youtube_id, item_id))
+    
+    conn.commit()
+
 def initialize_schema():
     conn = get_db()
     cursor = conn.cursor()
@@ -62,6 +108,15 @@ def initialize_schema():
     if not column_exists(conn, 'rss_item', 'fixed_title'):
         cursor.execute("ALTER TABLE rss_item ADD COLUMN rebait_title TEXT DEFAULT NULL")
         print("Added column: rss_item.fixed_title")
+    
+    if not column_exists(conn, 'rss_item', 'youtube_id'):
+        cursor.execute("ALTER TABLE rss_item ADD COLUMN youtube_id VARCHAR(20) DEFAULT NULL")
+        print("Added column: rss_item.youtube_id")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_rss_item_youtube_id ON rss_item(youtube_id)")
+        print("Created index: idx_rss_item_youtube_id")
+        
+    conn.commit()
+    populate_youtube_ids()
     
     conn.commit()
 
@@ -89,6 +144,7 @@ def get_non_deleted_items(only_pending_clickbait=False):
                 rss_feed.title AS channel_name,
                 rss_feed.url AS channel_url,
                 rss_item.title,
+                rss_item.rebait_title,
                 rss_item.url,
                 rss_item.deleted,
                 rss_item.unread,
@@ -116,6 +172,7 @@ def get_non_deleted_items(only_pending_clickbait=False):
                 'channel_name': row['channel_name'],
                 'channel_url': row['channel_url'],
                 'title': row['title'],
+                'rebait_title': row['rebait_title'],
                 'url': row['url'],
                 'deleted': row['deleted'],
                 'unread': row['unread'],
@@ -133,8 +190,6 @@ def get_non_deleted_items(only_pending_clickbait=False):
 
 @app.route('/api/items', methods=['GET', 'OPTIONS'])
 def get_items():
-    if request.method == 'OPTIONS':
-        return '', 200
         
     try:
         items = get_non_deleted_items()
@@ -539,11 +594,179 @@ def handle_batch_delete():
         'message': 'Failed to delete items'
     }), 500
 
+def populate_youtube_ids():
+    """Populate youtube_id for all non-deleted items."""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT id, url FROM rss_item 
+        WHERE deleted = 0
+    """)
+    
+    for row in cursor.fetchall():
+        item_id = row['id']
+        url = row['url']
+        youtube_id = extract_youtube_video_id(url)
+        
+        cursor.execute("""
+            UPDATE rss_item 
+            SET youtube_id = ? 
+            WHERE id = ?
+        """, (youtube_id, item_id))
+    
+    conn.commit()
+
+@app.route('/api/maintenance/prepare', methods=['POST', 'OPTIONS'])
+def maintenance_prepare():
+    """Prompt from a external script to prepare database. Perform any maintenance tasks here."""
+    populate_youtube_ids()
+    return jsonify({
+        'status': 'success',
+        'message': 'Database prepared successfully'
+    })
+
+def validate_clickbait_request():
+    """Validate and extract youtube_ids and is_clickbait from request. Returns (youtube_ids, is_clickbait, error_response)."""
+    if not request.is_json:
+        return None, None, (jsonify({
+            'status': 'error',
+            'message': 'Request must be JSON'
+        }), 400)
+    
+    data = request.get_json()
+    youtube_ids = data.get('youtube_ids', [])
+    is_clickbait = data.get('is_clickbait')
+    
+    if not isinstance(youtube_ids, list):
+        return None, None, (jsonify({
+            'status': 'error',
+            'message': 'youtube_ids must be an array'
+        }), 400)
+    
+    if not all(isinstance(yt_id, str) and yt_id for yt_id in youtube_ids):
+        return None, None, (jsonify({
+            'status': 'error',
+            'message': 'All YouTube IDs must be non-empty strings'
+        }), 400)
+    
+    if not isinstance(is_clickbait, bool):
+        return None, None, (jsonify({
+            'status': 'error',
+            'message': 'is_clickbait is required and must be a boolean (true or false)'
+        }), 400)
+    
+    return youtube_ids, is_clickbait, None
+
+def batch_set_clickbait_by_youtube_ids(youtube_ids, is_clickbait_value):
+    """Update is_clickbait for items matching the given YouTube IDs using indexed lookup."""
+    if not youtube_ids:
+        return {'updated': 0, 'errors': []}
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    placeholders = ','.join('?' * len(youtube_ids))
+    
+    cursor.execute(f"""
+        UPDATE rss_item
+        SET is_clickbait = ?
+        WHERE youtube_id IN ({placeholders})
+        AND deleted = 0
+    """, [is_clickbait_value] + youtube_ids)
+    
+    updated_count = cursor.rowcount
+    conn.commit()
+    
+    return {'updated': updated_count, 'errors': []}
+
+@app.route('/api/items/set-is-clickbait', methods=['POST'])
+def set_clickbait():
+    """Set clickbait status for items based on YouTube IDs. Request body: {"youtube_ids": [...], "is_clickbait": true/false}"""
+    
+    youtube_ids, is_clickbait, error_response = validate_clickbait_request()
+    if error_response:
+        response, status_code = error_response
+        return response, status_code
+    
+    is_clickbait_value = 1 if is_clickbait else 0
+    result = batch_set_clickbait_by_youtube_ids(youtube_ids, is_clickbait_value)
+    
+    return jsonify({
+        'status': 'success',
+        'message': f'Updated {result["updated"]} items',
+        'data': {
+            'updated_count': result['updated']
+        }
+    })
+
+def validate_rebait_title_request():
+    """Validate and extract youtube_id and rebait_title from request. Returns (youtube_id, rebait_title, error_response)."""
+    if not request.is_json:
+        return None, None, (jsonify({
+            'status': 'error',
+            'message': 'Request must be JSON'
+        }), 400)
+    
+    data = request.get_json()
+    youtube_id = data.get('youtube_id')
+    rebait_title = data.get('rebait_title')
+    
+    if not isinstance(youtube_id, str) or not youtube_id:
+        return None, None, (jsonify({
+            'status': 'error',
+            'message': 'youtube_id is required and must be a non-empty string'
+        }), 400)
+    
+    if rebait_title is not None and not isinstance(rebait_title, str):
+        return None, None, (jsonify({
+            'status': 'error',
+            'message': 'rebait_title must be a string or null'
+        }), 400)
+    
+    return youtube_id, rebait_title, None
+
+def set_rebait_title_by_youtube_id(youtube_id, rebait_title):
+    """Update rebait_title for item matching the given YouTube ID using indexed lookup."""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        UPDATE rss_item
+        SET rebait_title = ?
+        WHERE youtube_id = ?
+        AND deleted = 0
+    """, (rebait_title, youtube_id))
+    
+    updated_count = cursor.rowcount
+    conn.commit()
+    
+    return {'updated': updated_count, 'errors': []}
+
+@app.route('/api/items/set-rebait-title', methods=['POST'])
+def set_rebait_title():
+    """Set rebait_title for a single item based on YouTube ID. Request body: {"youtube_id": "id", "rebait_title": "title" or null}"""
+    
+    youtube_id, rebait_title, error_response = validate_rebait_title_request()
+    if error_response:
+        response, status_code = error_response
+        return response, status_code
+    
+    result = set_rebait_title_by_youtube_id(youtube_id, rebait_title)
+    
+    return jsonify({
+        'status': 'success',
+        'message': 'Updated rebait_title',
+        'data': {
+            'updated_count': result['updated']
+        }
+    })
+
 
 def process_items(items):
     #items = process_dearrow(items)
     items = process_add_origin(items)
-    items = process_add_youtube_id(items)
+    #items = process_add_youtube_id(items)
     return items
 
 def process_add_origin(items):
@@ -610,24 +833,6 @@ def process_dearrow(items):
         
     print('Finished processing items...')
     return items
-
-def extract_youtube_video_id(url):
-    parsed = urlparse(url)
-    
-    if parsed.hostname in ['www.youtube.com', 'youtube.com', 'm.youtube.com']:
-        # Try to get ID from ?v=VIDEO_ID
-        qs = parse_qs(parsed.query)
-        if 'v' in qs:
-            return qs['v'][0]
-        # Otherwise, get last part of path if it's embed or v
-        parts = parsed.path.split('/')
-        if parts[-2] in ['embed', 'v']:
-            return parts[-1]
-    
-    if parsed.hostname == 'youtu.be':
-        return parsed.path.lstrip('/')
-    
-    return None
 
 def http_get_dearrow_video_info(video_id, session):
     """Get the video info from Dearrow using the provided session."""

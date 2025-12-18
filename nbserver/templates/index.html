@@ -183,6 +183,11 @@
             letter-spacing: 0.02em;
         }
 
+        .item-origin .clickbait-emoji {
+            filter: grayscale(100%);
+            display: inline-block;
+        }
+
         .item-actions {
             display: flex;
             align-items: center;
@@ -296,6 +301,13 @@
         .keep-button:active {
             transform: translateY(1px);
             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .clickbait-indicator {
+            font-size: 18px;
+            line-height: 1;
+            margin-right: 8px;
+            display: inline-block;
         }
 
         a {
@@ -600,6 +612,12 @@
     <!-- Context Menu -->
     <div id="contextMenu" class="context-menu">
         <div class="context-menu-item">
+            <a href="#" id="contextScan">
+                <i class="fas fa-search"></i>
+                Scan
+            </a>
+        </div>
+        <div class="context-menu-item">
             <a href="#" id="contextToggleStar">
                 <i class="far fa-star" id="contextStarIcon"></i>
                 <span id="contextStarText">Star</span>
@@ -876,6 +894,9 @@
                 cardClasses = 'kept';
             }
 
+            // Determine clickbait indicator
+            const isClickbait = item.is_clickbait === true || item.is_clickbait === 1;
+
             return `
                 <div class="item-card ${cardClasses}" 
                      data-id="${item.id}"
@@ -888,7 +909,8 @@
                      data-channel-url="${item.channel_url}"
                      data-feed-url="${item.feedurl}"
                      data-starred="${isStarred}"
-                     data-flags="${item.flags || ''}">
+                     data-flags="${item.flags || ''}"
+                     data-is-clickbait="${item.is_clickbait || ''}">
                     <div class="item-header">
                         <div class="item-author">
                             ${item.channel_name || 'Loading...'}
@@ -903,7 +925,7 @@
                     <div class="item-title">${item.title}</div>
                     <div class="item-meta">
                         <div class="item-date">${formattedDate}</div>
-                        <div class="item-origin">${item.origin || ''}</div>
+                        <div class="item-origin">${isClickbait ? '<span class="clickbait-emoji">🔍</span> ' : ''}${item.origin || ''}</div>
                     </div>
                 </div>
             `;
@@ -1388,6 +1410,12 @@
             document.getElementById('contextToggleStar').onclick = async (e) => {
                 e.preventDefault();
                 await toggleStarred(itemId, item);
+                hideContextMenu();
+            };
+
+            document.getElementById('contextScan').onclick = (e) => {
+                e.preventDefault();
+                // TODO: Implement scan functionality
                 hideContextMenu();
             };
 
