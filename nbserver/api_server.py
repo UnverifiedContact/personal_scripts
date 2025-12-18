@@ -60,7 +60,7 @@ def initialize_schema():
         print("Added column: rss_item.is_clickbait")
 
     if not column_exists(conn, 'rss_item', 'fixed_title'):
-        cursor.execute("ALTER TABLE rss_item ADD COLUMN fixed_title TEXT DEFAULT NULL")
+        cursor.execute("ALTER TABLE rss_item ADD COLUMN rebait_title TEXT DEFAULT NULL")
         print("Added column: rss_item.fixed_title")
     
     conn.commit()
@@ -74,12 +74,16 @@ def index():
     """Serve the frontend application."""
     return render_template('index.html')
 
-def get_non_deleted_items():
+def get_non_deleted_items(only_pending_clickbait=False):
     try:
         conn = get_db()
         cursor = conn.cursor()
 
-        cursor.execute("""
+        where_clause = "WHERE deleted = 0"
+        if only_pending_clickbait:
+            where_clause += " AND is_clickbait IS NULL"
+
+        cursor.execute(f"""
             SELECT
                 rss_item.id,
                 rss_feed.title AS channel_name,
@@ -92,12 +96,13 @@ def get_non_deleted_items():
                 rss_item.content,
                 rss_item.author,
                 rss_item.feedurl,
-                rss_item.flags
+                rss_item.flags,
+                rss_item.is_clickbait
             FROM
                 rss_item
             INNER JOIN
                 rss_feed ON rss_item.feedurl = rss_feed.rssurl
-                WHERE deleted = 0
+            {where_clause}
             ORDER BY UPPER(channel_name) ASC;
         """)
         rows = cursor.fetchall()
@@ -117,7 +122,8 @@ def get_non_deleted_items():
                 'pubDate': pub_date,
                 'content': row['content'],
                 'feedurl': row['feedurl'],
-                'flags': row['flags']
+                'flags': row['flags'],
+                'is_clickbait': row['is_clickbait']
             })
         
         return items
@@ -132,6 +138,24 @@ def get_items():
         
     try:
         items = get_non_deleted_items()
+        items = process_items(items)
+        return jsonify({
+            'status': 'success',
+            'data': items
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/api/items/unqualified', methods=['GET', 'OPTIONS'])
+def get_pending_clickbait_items():
+    if request.method == 'OPTIONS':
+        return '', 200
+        
+    try:
+        items = get_non_deleted_items(only_pending_clickbait=True)
         items = process_items(items)
         return jsonify({
             'status': 'success',
