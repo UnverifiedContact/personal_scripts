@@ -612,6 +612,7 @@ nbr() {
     echo "Scanning..."
     newsboat -c "$NEWSBOAT_DB_FILE" -C "$NEWSBOAT_CONFIG_FILEPATH" -u "$NEWSBOAT_URLS_FILE" -x reload print-unread
     nbserver_db_prepare
+    rebait --qualify
     termux-vibrate
     termux-notification \
       --title "Open Localhost" \
