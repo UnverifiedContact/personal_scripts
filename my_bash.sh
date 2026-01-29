@@ -54,6 +54,7 @@ export NEWSBOAT_URLS_FILE="$HOME/newsboat/newsboat_urls_file"
 alias sub="python3 $HOME/personal_scripts/subscribe.py"
 alias iys="python3 $HOME/personal_scripts/inject_yt_subs.py"
 alias dld="time python3 $HOME/personal_scripts/dldir.py"
+alias flatten_vtt="python3 $HOME/personal_scripts/flatten_vtt.py"
 alias get='php $HOME/personal_scripts/custom_get.php'
 
 alias py='python3'
@@ -300,6 +301,7 @@ ytz() {
         --newline
         --merge-output-format mkv
         --remote-components ejs:github
+        --extractor-args "youtube:player_client=default,-android_sdkless"
         --sponsorblock-chapter all
         --use-postprocessor 'DeArrow:when=pre_process'
         -o '%(uploader,channel,uploader_id|40.40s)s - %(title)s [%(id)s].%(ext)s'
