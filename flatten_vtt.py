@@ -26,8 +26,9 @@ def parse_vtt_file(file_path):
     in_cue = False
     cue_text = []
     
-    # Pattern to match timestamp lines (e.g., "00:00:00.000 --> 00:00:02.500")
-    timestamp_pattern = re.compile(r'^\d{2}:\d{2}:\d{2}\.\d{3}\s*-->\s*\d{2}:\d{2}:\d{2}\.\d{3}')
+    # Pattern to match timestamp lines (supports both HH:MM:SS.mmm and MM:SS.mmm formats)
+    # Also handles optional cue settings after the timestamp
+    timestamp_pattern = re.compile(r'^\d{1,2}:\d{2}(:\d{2})?\.\d{3}\s*-->\s*\d{1,2}:\d{2}(:\d{2})?\.\d{3}')
     
     # Pattern to match dialogue markers (e.g., ">> Speaker:")
     dialogue_pattern = re.compile(r'^\s*>>\s*')
@@ -53,11 +54,12 @@ def parse_vtt_file(file_path):
         if line.upper() == 'WEBVTT':
             continue
         
-        # Skip cue identifiers (e.g., "1", "NOTE", etc.)
-        if re.match(r'^[A-Z]+$', line) and line != 'WEBVTT':
+        # Skip cue identifiers (e.g., "1", "2", "NOTE", etc.)
+        # Can be numeric or all-caps words
+        if re.match(r'^(\d+|[A-Z]+)$', line) and line.upper() != 'WEBVTT':
             continue
         
-        # Skip timestamp lines
+        # Skip timestamp lines (may have cue settings after timestamp)
         if timestamp_pattern.match(line):
             in_cue = True
             continue
@@ -88,7 +90,52 @@ def parse_vtt_file(file_path):
                 text = dialogue_pattern.sub('', text).strip()
             lines.append(text)
     
+    # Fallback: if no lines extracted, try a more lenient extraction
+    # This handles edge cases where VTT structure might be non-standard
+    if not lines:
+        for line in content.split('\n'):
+            line = line.strip()
+            # Skip empty lines, headers, and obvious metadata
+            if not line or line.upper() == 'WEBVTT' or timestamp_pattern.match(line):
+                continue
+            # Skip cue identifiers and metadata markers
+            if re.match(r'^(\d+|[A-Z]+)$', line) or re.match(r'^(STYLE|NOTE|REGION|KIND):', line, re.IGNORECASE):
+                continue
+            # Try to extract any text-like content
+            clean_line = re.sub(r'<[^>]+>', '', line)  # Remove HTML tags
+            clean_line = re.sub(r'align:\w+\s+position:\d+%', '', clean_line)  # Remove cue settings
+            if clean_line.strip() and len(clean_line.strip()) > 1:
+                lines.append(clean_line.strip())
+    
     return lines
+
+
+def is_text_file(file_path):
+    """
+    Quick check to verify file is text-based (not binary).
+    Reads first 8KB and checks for null bytes.
+    Very lenient - only rejects obvious binary files.
+    
+    Args:
+        file_path: Path to file to check
+        
+    Returns:
+        True if file appears to be text, False otherwise
+    """
+    try:
+        with open(file_path, 'rb') as f:
+            chunk = f.read(8192)  # Read first 8KB
+            
+        # Check for null bytes (binary files typically have them)
+        # This is the main indicator - text files shouldn't have null bytes
+        if b'\x00' in chunk:
+            return False
+        
+        # If no null bytes, assume it's text (very lenient)
+        # We'll let the actual parsing handle any encoding issues
+        return True
+    except IOError:
+        return False
 
 
 def flatten_vtt(input_file, output_file=None):
@@ -121,8 +168,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s video.vtt                    # Print to stdout
-  %(prog)s video.vtt -o output.txt      # Write to file
+  %(prog)s video.vtt                    # Write to video_flattened.txt
+  %(prog)s video.vtt -o output.txt      # Write to custom output file
   %(prog)s video.vtt --output output.txt # Alternative syntax
         """
     )
@@ -135,7 +182,7 @@ Examples:
     parser.add_argument(
         '-o', '--output',
         dest='output_file',
-        help='Path to output file (default: print to stdout)'
+        help='Path to output file (default: <input>_flattened.txt in same directory)'
     )
     
     args = parser.parse_args()
@@ -149,6 +196,19 @@ Examples:
     if not os.path.isfile(args.input_file):
         print(f"Error: Input path is not a file: {args.input_file}", file=sys.stderr)
         return 1
+    
+    # Quick check: verify file is text-based (not binary)
+    if not is_text_file(args.input_file):
+        print(f"Error: File does not appear to be a text file: {args.input_file}", file=sys.stderr)
+        print("This script only processes text-based VTT files.", file=sys.stderr)
+        return 1
+    
+    # Generate default output filename if not provided
+    if not args.output_file:
+        input_dir = os.path.dirname(args.input_file)
+        input_basename = os.path.basename(args.input_file)
+        input_name = os.path.splitext(input_basename)[0]
+        args.output_file = os.path.join(input_dir, f"{input_name}_flattened.txt")
     
     flatten_vtt(args.input_file, args.output_file)
     return 0
