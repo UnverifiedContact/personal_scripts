@@ -248,6 +248,67 @@ ytz_megabup() {
     "$HOME/yt-dlp/yt-dlp.sh" "${cmd_args[@]}" || echo "${!#}" >> ytdl_failure.txt
 }
 
+ytzx() {
+    local url="${!#}"
+    local selections=""
+
+    # Prioritize formats where we can explicitly select English audio (video+audio combinations)
+    # Skip HLS formats as they don't reliably respect language filters
+    selections+="bestvideo[height<=480][height>=480][vcodec!*=av01][protocol!=m3u8]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64][language=und]/bestaudio[abr>=64])/"
+    selections+="bestvideo[height<=720][height>=720][vcodec!*=av01][protocol!=m3u8]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64][language=und]/bestaudio[abr>=64])/"
+    selections+="worstvideo[height>=480][vcodec!*=av01][protocol!=m3u8]+((worstaudio[abr>=64][language^=en]/bestaudio[language^=en])/(worstaudio[abr>=64][language^=en]/worstaudio[abr>=64][language=und]/worstaudio[abr>=64]/bestaudio[language^=en]/bestaudio[language=und]/bestaudio))/"
+    
+    # Final fallbacks (exclude HLS to avoid language issues)
+    selections+="worst[height>=480][ext=mp4][protocol!=m3u8]/" # this line is necessary else we get fragmented formats which are gay
+    selections+="worst[height>=480][protocol!=m3u8]/"
+    selections+="bestvideo[protocol!=m3u8]+(bestaudio[language^=en]/bestaudio[language=und]/bestaudio)/best[language^=en][protocol!=m3u8]/best[language=und][protocol!=m3u8]/best[protocol!=m3u8]"
+
+    local progress_format="%(progress._percent_str)s ETA: %(progress._eta_str)s Speed: %(progress._speed_str)s Size: %(progress._total_bytes_str)s"
+    local archive_flag="--download-archive $HOME/yt-dlp/ytdl_success.txt"
+    local force_overwrite=""
+    local use_cookies=""
+    
+    [[ " $* " == *" --720 "* ]] && selections="bestvideo[height<=720][vcodec!*=av01]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64][language=und]/bestaudio[abr>=64])/$selections"
+    [[ " $* " == *" --1080 "* ]] && selections="bestvideo[height<=1080][vcodec!*=av01]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64][language=und]/bestaudio[abr>=64])/$selections"
+    [[ " $* " == *" --force "* ]] && { archive_flag=""; force_overwrite="--force-overwrites"; }
+    [[ " $* " == *" --max "* ]] && selections="bestvideo+(bestaudio[language^=en]/bestaudio[language=und]/bestaudio)/best[language^=en]/best[language=und]/best"
+    [[ " $* " == *" --cookies "* ]] && use_cookies="true"
+    
+    # YouTube: default skip_subs (unless --get-subs); Non-YouTube: always get subs
+    local is_youtube="" skip_subs=""
+    [[ "$url" =~ (youtube\.com|youtu\.be) ]] && is_youtube="true"
+    [[ "$is_youtube" = "true" && " $* " != *" --get-subs "* ]] && skip_subs="true"
+    [[ " $* " == *" --skip-subs "* ]] && skip_subs="true"
+
+    echo "$url"
+    
+    local cmd_args=(
+        -f "$selections"
+        --progress-template "[Downloading] %(info.uploader,info.channel,info.uploader_id)s - %(info.title)s | $progress_format"
+        --add-metadata
+        --embed-chapters
+        --match-filter '!is_live'
+        --match-filter 'duration<36000'
+        --progress
+        --newline
+        --merge-output-format mkv
+        --remote-components ejs:github
+        --extractor-args "youtube:player_client=default,-android_sdkless"
+        --sponsorblock-chapter all
+        --use-postprocessor 'DeArrow:when=pre_process'
+        -o '%(uploader,channel,uploader_id|40.40s)s - %(title)s [%(id)s].%(ext)s'
+        $archive_flag
+        $force_overwrite
+        --exec 'touch {} && echo {} && sync'
+    )
+    
+    [ "$skip_subs" != "true" ] && cmd_args+=(--sub-langs=en,en-orig,en-US,en-x-autogen,en-auto,English --write-subs --write-auto-subs --embed-subs)
+    [ "$is_youtube" = "true" ] && cmd_args+=(--exec "python3 $HOME/personal_scripts/inject_yt_subs.py {}")
+    [ "$use_cookies" = "true" ] && cmd_args+=(--cookies $HOME/yt-dlp/youtube.com_cookies.txt)
+    
+    "$HOME/yt-dlp/yt-dlp.sh" "${cmd_args[@]}" "$url" || echo "$url" >> ytdl_failure.txt
+}
+
 ytz() {
     local url="${!#}"
     local selections=""
@@ -279,6 +340,7 @@ ytz() {
     [[ " $* " == *" --720 "* ]] && selections="bestvideo[height<=720][vcodec!*=av01]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64])/$selections"
     [[ " $* " == *" --1080 "* ]] && selections="bestvideo[height<=1080][vcodec!*=av01]+(bestaudio[abr>=64][language^=en]/bestaudio[abr>=64])/$selections"
     [[ " $* " == *" --force "* ]] && { archive_flag=""; force_overwrite="--force-overwrites"; }
+    [[ " $* " == *" -f "* ]] && { archive_flag=""; force_overwrite="--force-overwrites"; }
     [[ " $* " == *" --max "* ]] && selections="bestvideo+bestaudio/best"
     [[ " $* " == *" --cookies "* ]] && use_cookies="true"
     
@@ -301,7 +363,7 @@ ytz() {
         --newline
         --merge-output-format mkv
         --remote-components ejs:github
-        --extractor-args "youtube:player_client=default,-android_sdkless"
+        #--extractor-args "youtube:player_client=default,-android_sdkless"
         --sponsorblock-chapter all
         --use-postprocessor 'DeArrow:when=pre_process'
         -o '%(uploader,channel,uploader_id|40.40s)s - %(title)s [%(id)s].%(ext)s'
