@@ -302,7 +302,7 @@ ytzx() {
         --exec 'touch {} && echo {} && sync'
     )
     
-    [ "$skip_subs" != "true" ] && cmd_args+=(--sub-langs=en,en-orig,en-US,en-x-autogen,en-auto,English --write-subs --write-auto-subs --embed-subs)
+    # ytzx never writes subs to disk, only injects via script if YouTube
     [ "$is_youtube" = "true" ] && cmd_args+=(--exec "python3 $HOME/personal_scripts/inject_yt_subs.py {}")
     [ "$use_cookies" = "true" ] && cmd_args+=(--cookies $HOME/yt-dlp/youtube.com_cookies.txt)
     
@@ -372,7 +372,8 @@ ytz() {
         --exec 'touch {} && echo {} && sync'
     )
     
-    [ "$skip_subs" != "true" ] && cmd_args+=(--sub-langs=en,en-orig,en-US,en-x-autogen,en-auto,English --write-subs --write-auto-subs --embed-subs)
+    # Use embed-subs and write-auto-subs (embeds, doesn't leave files); YouTube also uses inject script
+    [ "$skip_subs" != "true" ] && cmd_args+=(--sub-langs=en,en-orig,en-US,en-x-autogen,en-auto,English --embed-subs --write-auto-subs)
     [ "$is_youtube" = "true" ] && cmd_args+=(--exec "python3 $HOME/personal_scripts/inject_yt_subs.py {}")
     [ "$use_cookies" = "true" ] && cmd_args+=(--cookies $HOME/yt-dlp/youtube.com_cookies.txt)
     
