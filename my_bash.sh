@@ -511,6 +511,7 @@ alias syp='export -f ytz && export -f ytdl_flat_playlist && parallel -u --jobs 4
 #alias ytpn='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-em3dpNukt7dVGQ0EHz5SAC'
 
 alias ytw='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-dLfcvHQ5Us0ThR5yM0H2Fd' #water
+alias yt='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-dOANbI4zxecd47UR75_oFH' #getit
 alias ytpn='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-evYPqaB_Sdk57cYWDofrMz' # sleepy
 
 #alias sqlite='sqlite3'
