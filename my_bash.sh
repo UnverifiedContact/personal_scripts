@@ -858,8 +858,9 @@ source $HOME/personal_scripts/rebait/rebait.sh
 alias venv='source venv/bin/activate'
 
 START_SERVICES() {
-    $HOME/personal_scripts/transcript_service/start_gunicorn.sh
+    bash "$HOME/personal_scripts/transcript_service/start_gunicorn.sh" || echo "[transcript_service] start failed (continuing)"
     start_nbserver
+    bash "$HOME/personal_scripts/Rumble2RSS/start_server.sh" || echo "[Rumble2RSS] start failed (continuing)"
     if [ -f "$HOME/IS_MOBILE" ] && command -v am >/dev/null 2>&1; then
       start_nginx_termux
     fi
