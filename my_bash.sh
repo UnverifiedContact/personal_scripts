@@ -556,6 +556,10 @@ ytzc() {
   ytz --cookies $1
 }
 
+ytf() {
+    ytz --force "$@"
+}
+
 alias docker-compose="docker compose"
 alias ytdl_id="youtube-dl --get-filename -o '%(channel_id)s'"
 ytdl_rss() { VID_ID=$(ytdl_id $1) && echo "https://www.youtube.com/feeds/videos.xml?channel_id=$VID_ID"; }
