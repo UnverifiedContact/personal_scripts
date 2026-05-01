@@ -569,7 +569,7 @@ ytinfo() { yt-dlp --dump-json --skip-download $1 | jq --color-output . | less --
 alias yti='ytinfo'
 alias ytlist='yfl'
 # alias ytsubs="yt-dlp --skip-download --write-sub --sub-lang en"
-alias ytsubs="yt-dlp --skip-download --write-sub --write-auto-sub --sub-lang en,en-orig"
+alias ytsubs="yt-dlp --skip-download --write-sub --write-auto-sub --sub-lang en,en-orig,en-US,en-x-autogen,en-auto,English"
 
 ytdl_flat_playlist() { youtube-dl -j --flat-playlist "$1" | jq -r '.id' | sed 's_^_https://youtube.com/v/_'; }
 alias yfp='ytdl_flat_playlist'
