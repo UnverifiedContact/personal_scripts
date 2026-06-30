@@ -563,7 +563,7 @@ ytf() {
 alias docker-compose="docker compose"
 alias ytdl_id="youtube-dl --get-filename -o '%(channel_id)s'"
 ytdl_rss() { VID_ID=$(ytdl_id $1) && echo "https://www.youtube.com/feeds/videos.xml?channel_id=$VID_ID"; }
-yfl() { export -f ytz && parallel -u --jobs 6 -a $1 ytz; }
+yfl() { export -f ytz && parallel -u --jobs 2 -a $1 ytz; }
 
 ytinfo() { yt-dlp --dump-json --skip-download $1 | jq --color-output . | less --RAW-CONTROL-CHARS; };
 alias yti='ytinfo'
@@ -578,7 +578,9 @@ ytdl_soft_flat_channel() { youtube-dl -j "$1" | jq -r '.id'; }
 
 #alias sy='export -f ytz && parallel -u --jobs 4 ytz ::: $(curl http://209.209.9.16:476/lite.php);'
 alias sy='export -f ytz && parallel -u --jobs 4 ytz ::: $(list_news);'
-alias syp='export -f ytz && export -f ytdl_flat_playlist && parallel -u --jobs 4 ytz ::: $(ytdl_flat_playlist $1);'
+alias syp='export -f ytz && export -f ytdl_flat_playlist && parallel -u --jobs 4 ytz ::: $(ytdl_flat_playlist $1);'a
+alias vf='df -h | grep -e "lv" -e "Store" -e "emulated"'
+
 # alias ytp='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-fcZOlKWCZn6uP6SJ4btn7G'
 # alias ytp7='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-fKGIfEc4IC9pY1ZC22Sa6Q'
 # alias ytp8='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-ef0zZtbBhvLLYpGbS_8XsC'
@@ -588,6 +590,7 @@ alias syp='export -f ytz && export -f ytdl_flat_playlist && parallel -u --jobs 4
 alias ytw='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-dLfcvHQ5Us0ThR5yM0H2Fd' #water
 alias ytg='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-dOANbI4zxecd47UR75_oFH' #getit
 alias ytpn='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-evYPqaB_Sdk57cYWDofrMz' # sleepy
+alias yto='ytz https://www.youtube.com/playlist?list=PLMN7Y8QgFBL4' # forged
 
 #alias sqlite='sqlite3'
 alias begin_install='apt-get install tmux git curl wget apache2 aria2 php ncdu htop python jq ffmpeg w3m lynx vim sqlite newsboat parallel axel progress rclone which iproute2 mediainfo rsync man man-pages'
@@ -680,6 +683,7 @@ alias cnt="sqlite3 $NEWSBOAT_DB_FILE 'select count(*) from rss_item where delete
 alias nclear="sqlite3 $NEWSBOAT_DB_FILE 'UPDATE rss_item SET deleted=1;'"
 alias nc='nclear'
 alias list_news="sqlite3 $NEWSBOAT_DB_FILE 'SELECT url FROM rss_item WHERE deleted = 0 ORDER BY pubDate DESC;'"
+alias list_news="sqlite3 -batch -noheader -cmd '.mode list' '$NEWSBOAT_DB_FILE' 'SELECT url FROM rss_item WHERE deleted = 0 ORDER BY pubDate DESC;'"
 
 wget_authed() {
   USER=phoenix;
