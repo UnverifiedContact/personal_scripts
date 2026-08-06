@@ -1006,14 +1006,40 @@ serve_here() {
     rm -f "$tmp"
 }
 
-start_ftp() {
-    if ! ss -ltn | grep -q ':2121 '; then
-        nohup busybox tcpsvd -vE 0.0.0.0 2121 busybox ftpd -w "$HOME/ftp" \
-            >/dev/null 2>&1 &
+# start_ftp() {
+#     local port=${1:-2121}
+#     local dir=${2:-.}
+
+#     if ! pgrep -f "tcpsvd.*$port" >/dev/null; then
+#         nohup busybox tcpsvd -vE 0.0.0.0 "$port" busybox ftpd -w "$dir" >/dev/null 2>&1 &
+#         echo "FTP server running on port $port"
+#     fi
+# }
+
+ftp_server() {
+    local port=2121
+    local dir=.
+    local user=ftp
+    local pass=ftp
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -p|--port) port=$2; shift 2 ;;
+            -d|--dir)  dir=$2; shift 2 ;;
+            -u|--user) user=$2; shift 2 ;;
+            -P|--pass) pass=$2; shift 2 ;;
+        esac
+    done
+
+    if ! pgrep -f "pyftpdlib.*$port" >/dev/null; then
+        nohup python -m pyftpdlib -p "$port" -w -d "$dir" -u "$user" -P "$pass" >/dev/null 2>&1 &
+        echo "FTP server running on port $port"
     fi
 }
 
-start_ftp
+kill_ftp() {
+    pkill -f "pyftpdlib"
+}
 
 source $HOME/personal_scripts/rebait/rebait.sh
 alias venv='source venv/bin/activate'
@@ -1024,7 +1050,7 @@ START_SERVICES() {
     bash "$HOME/personal_scripts/Rumble2RSS/start_server.sh" || echo "[Rumble2RSS] start failed (continuing)"
     if [ -f "$HOME/IS_MOBILE" ] && command -v am >/dev/null 2>&1; then
       start_nginx_termux
-      start_ftp
+      start_ftp --user $FTP_USER --pass $FTP_PASS
     fi
 }
 START_SERVICES;
