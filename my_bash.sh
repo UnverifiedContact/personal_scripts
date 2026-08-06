@@ -1028,10 +1028,11 @@ ftp_server() {
             -d|--dir)  dir=$2; shift 2 ;;
             -u|--user) user=$2; shift 2 ;;
             -P|--pass) pass=$2; shift 2 ;;
+            *) shift ;;
         esac
     done
 
-    if ! pgrep -f "pyftpdlib.*$port" >/dev/null; then
+    if ! pgrep -f "pyftpdlib.*-p $port" >/dev/null; then
         nohup python -m pyftpdlib -p "$port" -w -d "$dir" -u "$user" -P "$pass" >/dev/null 2>&1 &
         echo "FTP server running on port $port"
     fi
