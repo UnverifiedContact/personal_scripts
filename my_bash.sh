@@ -1050,7 +1050,7 @@ START_SERVICES() {
     bash "$HOME/personal_scripts/Rumble2RSS/start_server.sh" || echo "[Rumble2RSS] start failed (continuing)"
     if [ -f "$HOME/IS_MOBILE" ] && command -v am >/dev/null 2>&1; then
       start_nginx_termux
-      start_ftp --user $FTP_USER --pass $FTP_PASS
+      ftp_server --user $FTP_USER --pass $FTP_PASS
     fi
 }
 START_SERVICES;
