@@ -999,12 +999,21 @@ yt_ai_summary() {
 alias ais=yt_ai_summary
 
 serve_here() {
-    port="${1:-6215}"
-    tmp=$(mktemp)
+    local port="${1:-6215}"
+    local tmp=$(mktemp)
     printf 'server.document-root="%s"\nserver.port=%s\ndir-listing.activate="enable"\n' "$PWD" "$port" > "$tmp"
     lighttpd -D -f "$tmp"
     rm -f "$tmp"
 }
+
+start_ftp() {
+    if ! ss -ltn | grep -q ':2121 '; then
+        nohup busybox tcpsvd -vE 0.0.0.0 2121 busybox ftpd -w "$HOME/ftp" \
+            >/dev/null 2>&1 &
+    fi
+}
+
+start_ftp
 
 source $HOME/personal_scripts/rebait/rebait.sh
 alias venv='source venv/bin/activate'
@@ -1015,6 +1024,7 @@ START_SERVICES() {
     bash "$HOME/personal_scripts/Rumble2RSS/start_server.sh" || echo "[Rumble2RSS] start failed (continuing)"
     if [ -f "$HOME/IS_MOBILE" ] && command -v am >/dev/null 2>&1; then
       start_nginx_termux
+      start_ftp
     fi
 }
 START_SERVICES;
