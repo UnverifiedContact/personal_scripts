@@ -1016,31 +1016,35 @@ serve_here() {
 #     fi
 # }
 
-ftp_server() {
-    local port=2121
-    local dir=.
-    local user=ftp
-    local pass=ftp
+# ftp_server() {
+#     local port=2121
+#     local dir=.
+#     local user=ftp
+#     local pass=ftp
 
-    while [ $# -gt 0 ]; do
-        case "$1" in
-            -p|--port) port=$2; shift 2 ;;
-            -d|--dir)  dir=$2; shift 2 ;;
-            -u|--user) user=$2; shift 2 ;;
-            -P|--pass) pass=$2; shift 2 ;;
-            *) shift ;;
-        esac
-    done
+#     while [ $# -gt 0 ]; do
+#         case "$1" in
+#             -p|--port) port=$2; shift 2 ;;
+#             -d|--dir)  dir=$2; shift 2 ;;
+#             -u|--user) user=$2; shift 2 ;;
+#             -P|--pass) pass=$2; shift 2 ;;
+#             *) shift ;;
+#         esac
+#     done
 
-    if ! pgrep -f "pyftpdlib.*-p $port" >/dev/null; then
-        nohup python -m pyftpdlib -p "$port" -w -d "$dir" -u "$user" -P "$pass" >/dev/null 2>&1 &
-        echo "FTP server running on port $port"
-    fi
-}
+#     if ! pgrep -f "pyftpdlib.*-p $port" >/dev/null; then
+#         nohup python -m pyftpdlib -p "$port" -w -d "$dir" -u "$user" -P "$pass" >/dev/null 2>&1 &
+#         echo "FTP server running on port $port"
+#     fi
+# }
 
-kill_ftp() {
-    pkill -f "pyftpdlib"
-}
+# start_ftp() {
+#     python -m pyftpdlib -p 2121 -w -d "$HOME" -u ftp -P ftp
+# }
+
+# kill_ftp() {
+#     pkill -f "pyftpdlib"
+# }
 
 source $HOME/personal_scripts/rebait/rebait.sh
 alias venv='source venv/bin/activate'
@@ -1051,7 +1055,7 @@ START_SERVICES() {
     bash "$HOME/personal_scripts/Rumble2RSS/start_server.sh" || echo "[Rumble2RSS] start failed (continuing)"
     if [ -f "$HOME/IS_MOBILE" ] && command -v am >/dev/null 2>&1; then
       start_nginx_termux
-      ftp_server --user $FTP_USER --pass $FTP_PASS
+      #ftp_server --user $FTP_USER --pass $FTP_PASS
     fi
 }
 START_SERVICES;
