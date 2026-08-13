@@ -641,6 +641,7 @@ yfl() { export -f ytz && parallel -u --jobs 2 -a $1 ytz; }
 ytinfo() { yt-dlp --dump-json --skip-download $1 | jq --color-output . | less --RAW-CONTROL-CHARS; };
 alias yti='ytinfo'
 alias ytlist='yfl'
+alias yt_thumb='yt-dlp --write-thumbnail --skip-download'
 # alias ytsubs="yt-dlp --skip-download --write-sub --sub-lang en"
 alias ytsubs="yt-dlp --skip-download --write-sub --write-auto-sub --sub-lang en,en-orig,en-US,en-x-autogen,en-auto,English"
 
@@ -652,7 +653,7 @@ ytdl_soft_flat_channel() { youtube-dl -j "$1" | jq -r '.id'; }
 #alias sy='export -f ytz && parallel -u --jobs 4 ytz ::: $(curl http://209.209.9.16:476/lite.php);'
 alias sy='export -f ytz && parallel -u --jobs 4 ytz ::: $(list_news);'
 alias syp='export -f ytz && export -f ytdl_flat_playlist && parallel -u --jobs 4 ytz ::: $(ytdl_flat_playlist $1);'a
-alias vf='df -h | grep -e "lv" -e "Store" -e "emulated"'
+alias vf='df -h | head -1 && df -h | grep -e "lv" -e "Store" -e "emulated" -e "storage"'
 
 # alias ytp='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-fcZOlKWCZn6uP6SJ4btn7G'
 # alias ytp7='ytz https://www.youtube.com/playlist?list=PLannLfUUpj-fKGIfEc4IC9pY1ZC22Sa6Q'
