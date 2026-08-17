@@ -8,6 +8,7 @@ import requests
 import json
 import subprocess
 import shutil
+import errno
 
 
 def is_termux() -> bool:
@@ -47,6 +48,24 @@ def safe_decode_bytes(data: bytes) -> str:
     if data is None:
         return ""
     return data.decode('utf-8', errors='replace')
+
+
+def replace_file(src: str, dst: str) -> None:
+    """We used to shell out to rsync here, but it started refusing to touch
+    our (symlinked) destination after a security fix in rsync 3.5.0. This
+    replaces it: rename when possible, safe copy when not, so dst is
+    never left half-written either way.
+    """
+    try:
+        os.replace(src, dst)
+        return
+    except OSError as e:
+        if e.errno != errno.EXDEV:
+            raise
+    staged = dst + ".part"
+    shutil.copyfile(src, staged)
+    os.replace(staged, dst)
+    os.remove(src)
 
 def extract_youtube_id(general_track):
 
@@ -103,8 +122,8 @@ def main():
         # Embed subtitles using appropriate method for file format
         muxed_path = embed_subtitles_by_format(media_file, vtt_path, tmp_dir)
 
-        # Atomically overwrite original with the muxed file (same filesystem as $TMP)
-        os.replace(muxed_path, media_file)
+        # Overwrite original with the muxed file
+        replace_file(muxed_path, media_file)
         size_mib = os.path.getsize(media_file) / (1024 * 1024)
         print(f"Subtitles embedded: {os.path.basename(media_file)} ({size_mib:.1f} MiB)", file=sys.stderr)
 
