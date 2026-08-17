@@ -103,20 +103,14 @@ def main():
         # Embed subtitles using appropriate method for file format
         muxed_path = embed_subtitles_by_format(media_file, vtt_path, tmp_dir)
 
-        # Overwrite original with rsync showing progress
-        rsync_cmd = [
-            "rsync", "-a", "--info=progress2", muxed_path, media_file
-        ]
-        rsync_result = subprocess.run(rsync_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if rsync_result.returncode != 0:
-            stderr_text = safe_decode_bytes(rsync_result.stderr)
-            sys.stderr.write(stderr_text)
-            exit_with(1, "rsync failed to overwrite the original file")
+        # Atomically overwrite original with the muxed file (same filesystem as $TMP)
+        os.replace(muxed_path, media_file)
+        size_mib = os.path.getsize(media_file) / (1024 * 1024)
+        print(f"Subtitles embedded: {os.path.basename(media_file)} ({size_mib:.1f} MiB)", file=sys.stderr)
 
         # Clean up temporary files
         try:
             os.remove(vtt_path)
-            os.remove(muxed_path)
         except OSError:
             pass  # Ignore errors if files don't exist or can't be removed
 
