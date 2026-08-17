@@ -464,6 +464,7 @@ ytz() {
 
     selections+="bestvideo[height<=480][height>=480][protocol!=m3u8][vcodec!*=av01]+$AUDIO_EN/"
     selections+="bestvideo[height<=720][height>=720][protocol!=m3u8][vcodec!*=av01]+$AUDIO_EN/"
+    selections+="bestvideo[vcodec!*=av01]+$AUDIO_EN/" # very questionable
     selections+="best[protocol=m3u8][height<=480][height>=480]/"
     selections+="best[protocol=m3u8][height<=360][height>=360]/"
     selections+="best[protocol=m3u8][height<=720][height>=720]/"
