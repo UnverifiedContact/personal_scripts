@@ -757,8 +757,19 @@ alias nbdb="backup_newsboat_cache && sqlite3 $NEWSBOAT_DB_FILE"
 alias cnt="sqlite3 $NEWSBOAT_DB_FILE 'select count(*) from rss_item where deleted =0;'"
 alias nclear="sqlite3 $NEWSBOAT_DB_FILE 'UPDATE rss_item SET deleted=1;'"
 alias nc='nclear'
-alias list_news="sqlite3 $NEWSBOAT_DB_FILE 'SELECT url FROM rss_item WHERE deleted = 0 ORDER BY pubDate DESC;'"
-alias list_news="sqlite3 -batch -noheader -cmd '.mode list' '$NEWSBOAT_DB_FILE' 'SELECT url FROM rss_item WHERE deleted = 0 ORDER BY pubDate DESC;'"
+#alias list_news="sqlite3 $NEWSBOAT_DB_FILE 'SELECT url FROM rss_item WHERE deleted = 0 ORDER BY pubDate DESC;'"
+#alias list_news="sqlite3 -batch -noheader -cmd '.mode list' '$NEWSBOAT_DB_FILE' 'SELECT url FROM rss_item WHERE deleted = 0 ORDER BY pubDate DESC;'"
+list_news() {
+    sqlite3 -batch -noheader -cmd '.mode list' "$NEWSBOAT_DB_FILE" \
+        "SELECT url FROM (
+            SELECT url, pubDate, (INSTR(flags, \"S\") > 0) AS is_starred
+            FROM rss_item
+            WHERE deleted = 0
+        )
+        ORDER BY
+            is_starred DESC,
+            pubDate DESC;"
+}
 
 wget_authed() {
   USER=phoenix;
