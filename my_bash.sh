@@ -761,14 +761,14 @@ alias nc='nclear'
 #alias list_news="sqlite3 -batch -noheader -cmd '.mode list' '$NEWSBOAT_DB_FILE' 'SELECT url FROM rss_item WHERE deleted = 0 ORDER BY pubDate DESC;'"
 list_news() {
     sqlite3 -batch -noheader -cmd '.mode list' "$NEWSBOAT_DB_FILE" \
-        "SELECT url FROM (
-            SELECT url, pubDate, (INSTR(flags, \"S\") > 0) AS is_starred
+        'SELECT url FROM (
+            SELECT url, pubDate, (INSTR(flags, '\''S'\'') > 0) AS is_starred
             FROM rss_item
             WHERE deleted = 0
         )
         ORDER BY
             is_starred DESC,
-            pubDate DESC;"
+            pubDate DESC;'
 }
 
 wget_authed() {
