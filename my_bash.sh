@@ -510,7 +510,7 @@ ytz() {
         #--extractor-args "youtube:player_client=default,-android_sdkless"
         --sponsorblock-chapter all
         --use-postprocessor 'DeArrow:when=pre_process'
-        -o '%(uploader,channel,uploader_id|40.40s)s - %(title)s [%(id)s].%(ext)s'
+        -o '%(uploader,channel,uploader_id,extractor|40.40s)s - %(title)s [%(id)s].%(ext)s'
         $archive_flag
         $force_overwrite
         --exec 'touch {} && echo {} && sync'
