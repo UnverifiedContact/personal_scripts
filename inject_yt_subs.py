@@ -9,6 +9,7 @@ import json
 import subprocess
 import shutil
 import errno
+import time
 
 
 def is_termux() -> bool:
@@ -79,6 +80,35 @@ def extract_youtube_id(general_track):
 
     return None
 
+def fetch_transcript_response(video_id: str) -> requests.Response:
+    """GET the transcript, restarting the local transcript_service and retrying
+    if it's not reachable. Termux kills the background gunicorn process, so a
+    plain connection-refused here doesn't mean the transcript is unavailable --
+    it means the service needs restarting first.
+    """
+    url = f"http://127.0.0.1:5485/transcript/{video_id}"
+    try:
+        return requests.get(url, timeout=30)
+    except requests.exceptions.ConnectionError:
+        pass
+
+    start_script = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "transcript_service", "start_gunicorn.sh"
+    )
+    subprocess.run(
+        ["bash", start_script], check=False, timeout=15,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+
+    deadline = time.monotonic() + 10.0
+    while time.monotonic() < deadline:
+        try:
+            return requests.get(url, timeout=30)
+        except requests.exceptions.ConnectionError:
+            time.sleep(0.5)
+
+    return requests.get(url, timeout=30)
+
 def main():
     if not sys.argv[1:]:
         exit_with(2, "Usage: inject_yt_subs.py <media_file>")
@@ -103,7 +133,7 @@ def main():
         exit_with(0, "Could not find video ID in metadata.. Maybe not a YouTube video?")
 
     try:
-        resp = requests.get(f"http://127.0.0.1:5485/transcript/{video_id}", timeout=30)
+        resp = fetch_transcript_response(video_id)
         if not resp.ok:
             exit_with(0, f"Transcript service unavailable (HTTP {resp.status_code}), skipping subtitle injection")
         
