@@ -451,7 +451,7 @@ ytz_PRIOR() {
 }
 
 
-ytz() {
+ytz_AUGUST() {
     local url="${!#}"
     local selections=""
 
@@ -521,6 +521,81 @@ ytz() {
     [ "$is_youtube" = "true" ] && cmd_args+=(--exec "python3 $HOME/personal_scripts/inject_yt_subs.py {}")
     [ "$use_cookies" = "true" ] && cmd_args+=(--cookies $HOME/yt-dlp/youtube.com_cookies.txt)
     
+    "$HOME/yt-dlp/yt-dlp.sh" "${cmd_args[@]}" "$url" || echo "$url" >> ytdl_failure.txt
+}
+
+
+ytz() {
+    local url="${!#}"
+
+    local AUDIO_ORIG="bestaudio[language=en-orig]"
+    local AUDIO_EN_CLEAN="bestaudio[language=en-US][format_note!*=dubbed]/bestaudio[language=en][format_note!*=dubbed]"
+    local AUDIO_EN_FALLBACK="bestaudio[abr>=64][language^=en][format_note!*=dubbed]"
+    local AUDIO_ANY="bestaudio[abr>=64]"
+    local AUDIO_EN="($AUDIO_ORIG/$AUDIO_EN_CLEAN/$AUDIO_EN_FALLBACK/$AUDIO_ANY)"
+
+    # Target resolution via yt-dlp's own `-S res:N` sort key instead of exact
+    # height[<=][>=] matching: it picks the closest format at/below N, or the
+    # smallest option above N if nothing smaller exists. This works regardless
+    # of aspect ratio -- exact height matching breaks on non-16:9 video, where
+    # a "480p"/"720p" tier's real pixel height isn't a round number.
+    local target_res="480"
+    [[ " $* " == *" --720 "* ]] && target_res="720"
+    [[ " $* " == *" --1080 "* ]] && target_res="1080"
+    local sort_flag="-S res:$target_res"
+
+    local selections="bestvideo[protocol!=m3u8][vcodec!*=av01]+$AUDIO_EN/best[protocol!=m3u8][vcodec!*=av01]/best[protocol=m3u8]/best"
+    [[ " $* " == *" --max "* ]] && { selections="bestvideo+bestaudio/best"; sort_flag=""; }
+
+    local progress_format="%(progress._percent_str)s ETA: %(progress._eta_str)s Speed: %(progress._speed_str)s Size: %(progress._total_bytes_str)s"
+    local archive_flag="--download-archive $HOME/yt-dlp/ytdl_success.txt"
+    local force_overwrite=""
+    local use_cookies=""
+
+    [[ " $* " == *" --force "* ]] && { archive_flag=""; force_overwrite="--force-overwrites"; }
+    [[ " $* " == *" -f "* ]] && { archive_flag=""; force_overwrite="--force-overwrites"; }
+    [[ " $* " == *" --cookies "* ]] && use_cookies="true"
+
+    # YouTube: default skip_subs (unless --get-subs); Non-YouTube: always get subs
+    # Also matches a bare 11-char video ID (no youtube.com/youtu.be in it) --
+    # otherwise is_youtube stays false, skip_subs never kicks in, and yt-dlp
+    # tries --write-auto-subs straight from YouTube instead of going through
+    # the local transcript_service exec, which gets rate-limited (HTTP 429).
+    local is_youtube="" skip_subs=""
+    [[ "$url" =~ (youtube\.com|youtu\.be) || "$url" =~ ^[A-Za-z0-9_-]{11}$ ]] && is_youtube="true"
+    [[ "$is_youtube" = "true" && " $* " != *" --get-subs "* ]] && skip_subs="true"
+    [[ " $* " == *" --skip-subs "* ]] && skip_subs="true"
+
+    echo "$url"
+
+    local cmd_args=(
+        $sort_flag
+        -f "$selections"
+        --progress-template "[Downloading] %(info.uploader,info.channel,info.uploader_id)s - %(info.title)s | $progress_format"
+        --add-metadata
+        --embed-chapters
+        --match-filter '!is_live'
+        --match-filter 'duration<36000'
+        --progress
+        --newline
+        --merge-output-format mkv
+        --hls-prefer-ffmpeg
+        --downloader-args "ffmpeg:-loglevel error"
+        --remote-components ejs:github
+        #--extractor-args "youtube:player_client=default,-android_sdkless"
+        --sponsorblock-chapter all
+        --use-postprocessor 'DeArrow:when=pre_process'
+        -o '%(uploader,channel,uploader_id,extractor|40.40s)s - %(title)s [%(id)s].%(ext)s'
+        $archive_flag
+        $force_overwrite
+        --exec 'touch {} && echo {} && sync'
+    )
+
+    # Use embed-subs and write-auto-subs (embeds, doesn't leave files); YouTube also uses inject script
+    [ "$skip_subs" != "true" ] && cmd_args+=(--sub-langs=en,en-orig,en-US,en-x-autogen,en-auto,English --embed-subs --write-auto-subs)
+    [ "$is_youtube" = "true" ] && cmd_args+=(--exec "python3 $HOME/personal_scripts/inject_yt_subs.py {}")
+    [ "$use_cookies" = "true" ] && cmd_args+=(--cookies $HOME/yt-dlp/youtube.com_cookies.txt)
+
     "$HOME/yt-dlp/yt-dlp.sh" "${cmd_args[@]}" "$url" || echo "$url" >> ytdl_failure.txt
 }
 
