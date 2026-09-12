@@ -121,7 +121,30 @@ def fetch_transcript_response(video_id: str) -> requests.Response:
 
     return requests.get(url, timeout=30)
 
-def check_file(media_file: str) -> tuple[bool, str]:
+def check_disk_space(media_file: str, tmp_dir: str) -> tuple[bool, str]:
+    """Check free space on both the temp dir's filesystem (where ffmpeg
+    writes the full muxed copy) and the destination dir's filesystem
+    (where replace_file() has to stage a copy if it's a different
+    filesystem than tmp_dir). -c copy remuxing doesn't re-encode, so the
+    muxed output is roughly the same size as the input plus a negligible
+    subtitle track; require a margin on top for safety.
+    """
+    needed = os.path.getsize(media_file)
+    needed += max(int(needed * 0.1), 100 * 1024 * 1024)
+
+    dest_dir = os.path.dirname(os.path.abspath(media_file)) or "."
+
+    for label, path in (("temp dir", tmp_dir), ("destination dir", dest_dir)):
+        free = shutil.disk_usage(path).free
+        if free < needed:
+            return False, (
+                f"not enough disk space in {label} ({path}): "
+                f"need ~{needed // (1024 * 1024)} MiB, have {free // (1024 * 1024)} MiB free"
+            )
+    return True, ""
+
+
+def check_file(media_file: str, tmp_dir: str) -> tuple[bool, str]:
     """Run the cheap, local, non-mutating checks that decide whether a file
     is worth attempting. Returns (will_process, reason) -- reason is only
     meaningful when will_process is False.
@@ -145,6 +168,10 @@ def check_file(media_file: str) -> tuple[bool, str]:
 
     if not extract_youtube_id(general_track):
         return False, "no YouTube video ID found in metadata"
+
+    ok, reason = check_disk_space(media_file, tmp_dir)
+    if not ok:
+        return False, reason
 
     return True, ""
 
@@ -172,6 +199,10 @@ def process_file(media_file: str, tmp_dir: str) -> None:
     if not video_id:
         raise ProcessError(0, "Could not find video ID in metadata.. Maybe not a YouTube video?")
 
+    ok, reason = check_disk_space(media_file, tmp_dir)
+    if not ok:
+        raise ProcessError(1, reason)
+
     try:
         resp = fetch_transcript_response(video_id)
         if not resp.ok:
@@ -186,19 +217,21 @@ def process_file(media_file: str, tmp_dir: str) -> None:
         with open(vtt_path, "w", encoding="utf-8") as f:
             f.write(vtt)
 
-        # Embed subtitles using appropriate method for file format
-        muxed_path = embed_subtitles_by_format(media_file, vtt_path, tmp_dir)
+        try:
+            # Embed subtitles using appropriate method for file format
+            muxed_path = embed_subtitles_by_format(media_file, vtt_path, tmp_dir)
 
-        # Overwrite original with the muxed file
-        replace_file(muxed_path, media_file)
+            # Overwrite original with the muxed file
+            replace_file(muxed_path, media_file)
+        finally:
+            # Always clean up the .vtt, whether we succeeded or not
+            try:
+                os.remove(vtt_path)
+            except OSError:
+                pass
+
         size_mib = os.path.getsize(media_file) / (1024 * 1024)
         print(f"Subtitles embedded: {os.path.basename(media_file)} ({size_mib:.1f} MiB)", file=sys.stderr, flush=True)
-
-        # Clean up temporary files
-        try:
-            os.remove(vtt_path)
-        except OSError:
-            pass  # Ignore errors if files don't exist or can't be removed
 
         result = dict(data)
         if "transcript" in result:
@@ -258,7 +291,7 @@ def main():
     included = []
     excluded = []
     for path in paths:
-        ok, reason = check_file(path)
+        ok, reason = check_file(path, tmp_dir)
         if ok:
             included.append(path)
         else:
@@ -317,6 +350,12 @@ def embed_subtitles_mkv(media_file: str, vtt_path: str, muxed_path: str) -> None
         # Forward ffmpeg stderr to our stderr to avoid stdout noise
         stderr_text = safe_decode_bytes(result.stderr)
         sys.stderr.write(stderr_text)
+        # ffmpeg can leave a partial file behind (e.g. on ENOSPC); don't
+        # let it sit in tmp and eat further disk space
+        try:
+            os.remove(muxed_path)
+        except OSError:
+            pass
         raise ProcessError(1, "ffmpeg failed to mux subtitles into MKV")
 
 
@@ -345,6 +384,12 @@ def embed_subtitles_mp4(media_file: str, vtt_path: str, muxed_path: str) -> None
         # Forward ffmpeg stderr to our stderr to avoid stdout noise
         stderr_text = safe_decode_bytes(result.stderr)
         sys.stderr.write(stderr_text)
+        # ffmpeg can leave a partial file behind (e.g. on ENOSPC); don't
+        # let it sit in tmp and eat further disk space
+        try:
+            os.remove(muxed_path)
+        except OSError:
+            pass
         raise ProcessError(1, "ffmpeg failed to mux subtitles into MP4")
 
 
