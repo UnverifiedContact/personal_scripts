@@ -95,10 +95,15 @@ cbup() {
 	FILENAME=$(basename $FILEPATH);
 	echo $FILENAME;
 	echo $FILEPATH;
+
+	local failed=0
+
 	#rclone copy $FILEPATH box1:test --backup-dir="box1:old/$FILENAME/$TIMESTAMP" -P;
-	rclone copy $FILEPATH box2:cbup --backup-dir="box2:old/$FILENAME/$TIMESTAMP" -P;
-	rclone copy $FILEPATH mega2:cbup --backup-dir="mega2:old/$FILENAME/$TIMESTAMP" -P;
+	rclone copy $FILEPATH box2:cbup --backup-dir="box2:old/$FILENAME/$TIMESTAMP" -P || ((failed++));
+	rclone copy $FILEPATH mega2:cbup --backup-dir="mega2:old/$FILENAME/$TIMESTAMP" -P || ((failed++));
 	#rclone copy $FILEPATH mega1:test --backup-dir="mega1:old/$FILENAME/$TIMESTAMP" -P;
+
+	[ "$failed" -ne 0 ] && echo "cbup: $failed of 2 remotes failed"; return "$failed"
 }
 
 cpull() {
