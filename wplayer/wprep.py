@@ -156,28 +156,9 @@ def prepare(path: str, out_root: str, name: str | None, force: bool) -> None:
 def package(path: str, folder: str, base: str, streams: list[dict], video: dict, audio: dict | None,
             n_audio: int) -> None:
     """Write the playable video, subtitles and index.html into folder."""
-    audio_ok = audio is None or audio["codec_name"] in COPY_AUDIO
-    ready = path.lower().endswith(".mp4") and audio_ok and n_audio <= 1
-    media = base + ".mp4"
-
-    cmd = ["ffmpeg", "-hide_banner", "-v", "warning", "-stats", "-y", "-i", path]
-    if ready:
-        print("  video: already browser-ready")
-        copy_with_progress(path, os.path.join(folder, media))
-    else:
-        cmd += ["-map", f"0:{video['index']}", "-c:v", "copy"]
-        if video["codec_name"] == "hevc":
-            cmd += ["-tag:v", "hvc1"]
-        if audio:
-            cmd += ["-map", f"0:{audio['index']}"]
-            cmd += ["-c:a", "copy"] if audio_ok else ["-c:a", "aac", "-b:a", "96k", "-ac", "2"]
-        cmd += ["-movflags", "+faststart", os.path.join(folder, media)]
-        print(f"  video: {video['codec_name']} copy")
-        if audio:
-            print(f"  audio: {audio['codec_name']} {'copy' if audio_ok else '-> aac 96k stereo'}")
-
-    # Embedded subs ride along as extra outputs of the same ffmpeg run, so the file is read once.
+    # Subtitles go first, so any "include it anyway?" question comes before the slow video step.
     found, taken = [], set()  # found: (player entry, .vtt name, where it came from)
+    cmd = ["ffmpeg", "-hide_banner", "-v", "error", "-y", "-i", path]
     for s in (s for s in streams if s["codec_type"] == "subtitle"):
         if s["codec_name"] not in TEXT_SUBS:
             print(f"  subs: skipping image-based {s['codec_name']} track")
@@ -187,10 +168,8 @@ def package(path: str, folder: str, base: str, streams: list[dict], video: dict,
         found.append(({"src": quote(name), "lang": lang(s), "label": s.get("tags", {}).get("title", "")},
                       name, f"embedded track {s['index']}"))
         print(f"  subs: {s['codec_name']} -> {name}")
-
-    if not ready or found:
-        if subprocess.run(cmd).returncode != 0:
-            raise Skip("ffmpeg failed")
+    if found and subprocess.run(cmd).returncode != 0:
+        raise Skip("ffmpeg failed extracting subtitles")
 
     # Loose subtitle files next to the input: name.srt, name.en.srt, name.en.vtt, ...
     stem = os.path.splitext(os.path.abspath(path))[0]
@@ -214,6 +193,26 @@ def package(path: str, folder: str, base: str, streams: list[dict], video: dict,
             subs.append(entry)
         else:
             os.remove(os.path.join(folder, name))
+
+    audio_ok = audio is None or audio["codec_name"] in COPY_AUDIO
+    media = base + ".mp4"
+    if path.lower().endswith(".mp4") and audio_ok and n_audio <= 1:
+        print("  video: already browser-ready")
+        copy_with_progress(path, os.path.join(folder, media))
+    else:
+        cmd = ["ffmpeg", "-hide_banner", "-v", "warning", "-stats", "-y", "-i", path,
+               "-map", f"0:{video['index']}", "-c:v", "copy"]
+        if video["codec_name"] == "hevc":
+            cmd += ["-tag:v", "hvc1"]
+        if audio:
+            cmd += ["-map", f"0:{audio['index']}"]
+            cmd += ["-c:a", "copy"] if audio_ok else ["-c:a", "aac", "-b:a", "96k", "-ac", "2"]
+        cmd += ["-movflags", "+faststart", os.path.join(folder, media)]
+        print(f"  video: {video['codec_name']} copy")
+        if audio:
+            print(f"  audio: {audio['codec_name']} {'copy' if audio_ok else '-> aac 96k stereo'}")
+        if subprocess.run(cmd).returncode != 0:
+            raise Skip("ffmpeg failed")
 
     with open(PLAYER) as f:
         html = f.read()
