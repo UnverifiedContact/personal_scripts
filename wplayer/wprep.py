@@ -110,6 +110,19 @@ def copy_with_progress(src: str, dst: str) -> None:
     print()
 
 
+def ask_name(default: str) -> str:
+    """Ask for the package folder name; Enter (or no terminal) keeps the default."""
+    if not sys.stdin.isatty():
+        return default
+    while True:
+        answer = input(f"  folder name [{default}]: ").strip()
+        if not answer:
+            return default
+        if "/" not in answer:
+            return answer
+        print("  no '/' in the name please")
+
+
 def prepare(path: str, out_root: str, name: str | None, force: bool) -> None:
     print(f"== {path}")
     streams = probe(path)["streams"]
@@ -120,15 +133,16 @@ def prepare(path: str, out_root: str, name: str | None, force: bool) -> None:
     video, audio = videos[0], pick_audio(audios)
     check_video(video)
 
-    base = name or os.path.splitext(os.path.basename(path))[0]
+    base = name or ask_name(os.path.splitext(os.path.basename(path))[0])
     final = os.path.join(out_root, base)
     if os.path.exists(final):
         if not force:
             raise Skip(f"{final} exists (use -f to overwrite)")
         if not os.path.isfile(os.path.join(final, "index.html")):
             raise Skip(f"{final} exists and isn't a wprep folder, not touching it")
-    # Build in .partial, then swap it in by renames, so a failed run never leaves a half package.
-    folder, old = final + ".partial", final + ".old"
+    # Build in "PENDING - <name>", then swap it in by renames, so a failed run never leaves a half package.
+    folder = os.path.join(out_root, "PENDING - " + base)
+    old = final + ".old"
     # Clear leftovers from earlier runs now, before any slow copying, and stop if that's impossible.
     for leftover in (folder, old):
         shutil.rmtree(leftover, ignore_errors=True)
@@ -229,7 +243,7 @@ def main() -> None:
     parser.add_argument("inputs", nargs="+", help="video files")
     parser.add_argument("-o", "--out", default=os.environ.get("WPLAYER_OUT", "."),
                         help="where package folders go (default: $WPLAYER_OUT, else the current directory)")
-    parser.add_argument("-n", "--name", help="package folder name (default: the input's filename); one input only")
+    parser.add_argument("-n", "--name", help="package folder name (default: ask, Enter keeps the input's filename); one input only")
     parser.add_argument("-f", "--force", action="store_true", help="overwrite an existing package")
     args = parser.parse_args()
     sys.stdout.reconfigure(line_buffering=True)
