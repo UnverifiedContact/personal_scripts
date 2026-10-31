@@ -58,7 +58,7 @@ alias iys="python3 $HOME/personal_scripts/inject_yt_subs.py"
 alias dld="time python3 $HOME/personal_scripts/dldir.py"
 alias flatten_vtt="python3 $HOME/personal_scripts/flatten_vtt.py"
 alias wprep="python3 $HOME/personal_scripts/wplayer/wprep.py"
-# export WPLAYER_OUT="/path/to/public_html/movies"  # where wp puts packages (default: current dir)
+# export WPLAYER_OUT="/path/to/public_html/movies"  # where wprep puts packages (default: current dir)
 alias get='php $HOME/personal_scripts/custom_get.php'
 
 alias py='python3'
