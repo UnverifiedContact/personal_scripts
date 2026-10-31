@@ -158,7 +158,7 @@ def package(path: str, folder: str, base: str, streams: list[dict], video: dict,
     """Write the playable video, subtitles and index.html into folder."""
     # Subtitles go first, so any "include it anyway?" question comes before the slow video step.
     found, taken = [], set()  # found: (player entry, .vtt name, where it came from)
-    cmd = ["ffmpeg", "-hide_banner", "-v", "error", "-y", "-i", path]
+    cmd = ["ffmpeg", "-hide_banner", "-v", "error", "-stats", "-y", "-i", path]
     for s in (s for s in streams if s["codec_type"] == "subtitle"):
         if s["codec_name"] not in TEXT_SUBS:
             print(f"  subs: skipping image-based {s['codec_name']} track")
@@ -168,8 +168,10 @@ def package(path: str, folder: str, base: str, streams: list[dict], video: dict,
         found.append(({"src": quote(name), "lang": lang(s), "label": s.get("tags", {}).get("title", "")},
                       name, f"embedded track {s['index']}"))
         print(f"  subs: {s['codec_name']} -> {name}")
-    if found and subprocess.run(cmd).returncode != 0:
-        raise Skip("ffmpeg failed extracting subtitles")
+    if found:
+        print("  subs: reading through the whole file to extract them...")
+        if subprocess.run(cmd).returncode != 0:
+            raise Skip("ffmpeg failed extracting subtitles")
 
     # Loose subtitle files next to the input: name.srt, name.en.srt, name.en.vtt, ...
     stem = os.path.splitext(os.path.abspath(path))[0]
