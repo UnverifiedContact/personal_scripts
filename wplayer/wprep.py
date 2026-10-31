@@ -17,6 +17,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from urllib.parse import quote
 
 COPY_VIDEO = {"h264", "hevc", "av1", "vp9"}
@@ -255,13 +256,15 @@ def main() -> None:
     for tool in ("ffmpeg", "ffprobe"):
         if not shutil.which(tool):
             sys.exit(f"wprep: {tool} not found")
-    failed = 0
+    failed, start = 0, time.monotonic()
     for path in args.inputs:
         try:
             prepare(path, args.out, args.name, args.force)
         except Skip as e:
             print(f"  SKIPPED: {e}", file=sys.stderr)
             failed += 1
+    elapsed = int(time.monotonic() - start)
+    print(f"total time: {elapsed // 60}m {elapsed % 60:02d}s")
     sys.exit(1 if failed else 0)
 
 
