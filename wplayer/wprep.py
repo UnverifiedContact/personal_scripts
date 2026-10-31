@@ -8,6 +8,8 @@ For each input, creates a self-contained folder <out>/<name>/ (out: -o, $WPLAYER
   <name>.<lang>.vtt subtitles (embedded text subs + loose name*.srt/.vtt/.ass files next to the input)
 Multiple audio tracks: the English one is used, or the file is skipped.
 """
+from __future__ import annotations
+
 import argparse
 import glob
 import json
