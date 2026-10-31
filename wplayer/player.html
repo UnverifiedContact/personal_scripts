@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wplayer</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@videojs/cdn@10.1.0/global.css">
+<script type="module" src="https://cdn.jsdelivr.net/npm/@videojs/cdn@10.1.0/video.js"></script>
+<style>
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #0d0e11; color: #e8e8ea;
+         font: 15px/1.5 system-ui, sans-serif; }
+  main { width: 100%; padding: 16px; box-sizing: border-box; }
+  h1 { font-size: 1rem; font-weight: 600; margin: 0 auto 10px; overflow-wrap: anywhere; text-align: center; }
+  /* Fit the window both ways: width is capped so the height (width / aspect) leaves room for the title. */
+  video-skin { --ar: 16 / 9; display: block; margin: 0 auto; aspect-ratio: var(--ar);
+               width: min(100%, calc((100dvh - 80px) * (var(--ar))));
+               border-radius: 12px; overflow: hidden; background: #000; }
+  #notice { color: #f5b14c; }
+  #notice:empty { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="title"></h1>
+  <video-player>
+    <video-skin>
+      <video id="video" playsinline></video>
+    </video-skin>
+  </video-player>
+  <p id="notice"></p>
+</main>
+<script type="module">
+// What to play (wprep.py fills these in). ?src=URL in the page address overrides SRC.
+const SRC = "";
+const SUBS = [];  // [{src: "film.en.vtt", lang: "en", label: ""}]
+
+const video = document.getElementById("video");
+const src = new URLSearchParams(location.search).get("src") || SRC;
+const names = new Intl.DisplayNames(["en"], { type: "language" });
+const langName = (code) => { try { return names.of(code); } catch { return code; } };
+
+for (const s of SUBS) {
+  const track = Object.assign(document.createElement("track"),
+    { kind: "subtitles", src: s.src, label: s.label || langName(s.lang) || "Subtitles" });
+  if (s.lang) track.srclang = s.lang;
+  video.append(track);
+}
+video.src = src;
+document.title = document.getElementById("title").textContent =
+  decodeURIComponent(src.split("/").pop()).replace(/\.[^.]+$/, "");
+
+// A browser that can't decode the video (usually HEVC) plays the audio over black instead of erroring.
+video.addEventListener("loadeddata", () => {
+  if (video.videoWidth) document.querySelector("video-skin").style.setProperty("--ar", `${video.videoWidth} / ${video.videoHeight}`);
+  else document.getElementById("notice").textContent =
+    "This browser can't play this video's format (probably HEVC/H.265). Try Chrome, Edge or Safari.";
+}, { once: true });
+
+// Resume where you left off.
+const key = "wplayer:" + new URL(src, location.href).href;
+video.addEventListener("loadedmetadata", () => {
+  let saved = 0;
+  try { saved = parseFloat(localStorage.getItem(key)) || 0; } catch {}
+  if (saved > 10 && saved < video.duration - 10) video.currentTime = saved;
+}, { once: true });
+video.addEventListener("pause", () => {
+  try { localStorage.setItem(key, video.currentTime); } catch {}
+});
+setInterval(() => {
+  if (!video.paused) try { localStorage.setItem(key, video.currentTime); } catch {}
+}, 5000);
+</script>
+</body>
+</html>
