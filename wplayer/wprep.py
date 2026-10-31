@@ -23,6 +23,7 @@ COPY_VIDEO = {"h264", "hevc", "av1", "vp9"}
 COPY_AUDIO = {"aac", "mp3", "opus"}
 TEXT_SUBS = {"subrip", "ass", "ssa", "webvtt", "mov_text", "text"}
 LOOSE_SUBS = (".srt", ".vtt", ".ass", ".ssa")
+MIN_CUES = 50  # fewer subtitle lines than this looks like junk
 PLAYER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player.html")
 
 
@@ -73,6 +74,42 @@ def sub_name(base: str, code: str, taken: set[str]) -> str:
     return name
 
 
+def sub_looks_ok(vtt: str, source: str) -> bool:
+    """Nearly-empty subtitle tracks are usually junk (e.g. a site ad): show them and ask whether to keep."""
+    with open(vtt, encoding="utf-8", errors="replace") as f:
+        blocks = f.read().split("\n\n")
+    cues = []
+    for block in blocks:
+        lines = block.strip().splitlines()
+        for i, line in enumerate(lines):
+            if "-->" in line:
+                cues.append(" / ".join(lines[i + 1:]))
+                break
+    if len(cues) >= MIN_CUES:
+        return True
+    print(f"  subs: warning: {source} has only {len(cues)} line(s):")
+    for cue in cues[:5]:
+        print(f"      {cue}")
+    if not sys.stdin.isatty():
+        print("  subs: not interactive, leaving it out")
+        return False
+    return input("  include it anyway? [y/N] ").strip().lower() in ("y", "yes")
+
+
+def copy_with_progress(src: str, dst: str) -> None:
+    """Copy src to dst, printing a percentage as it goes."""
+    total, done, shown = os.path.getsize(src) or 1, 0, -1
+    with open(src, "rb") as fin, open(dst, "wb") as fout:
+        for chunk in iter(lambda: fin.read(8 << 20), b""):
+            fout.write(chunk)
+            done += len(chunk)
+            pct = done * 100 // total
+            if pct != shown:
+                shown = pct
+                print(f"\r  copying: {pct}% ({done >> 20}/{total >> 20} MB)", end="", flush=True)
+    print()
+
+
 def prepare(path: str, out_root: str, name: str | None, force: bool) -> None:
     print(f"== {path}")
     streams = probe(path)["streams"]
@@ -90,17 +127,29 @@ def prepare(path: str, out_root: str, name: str | None, force: bool) -> None:
             raise Skip(f"{final} exists (use -f to overwrite)")
         if not os.path.isfile(os.path.join(final, "index.html")):
             raise Skip(f"{final} exists and isn't a wprep folder, not touching it")
-    # Build in a .partial folder and rename at the end, so a failed run never leaves a half package.
-    folder = final + ".partial"
-    shutil.rmtree(folder, ignore_errors=True)
+    # Build in .partial, then swap it in by renames, so a failed run never leaves a half package.
+    folder, old = final + ".partial", final + ".old"
+    # Clear leftovers from earlier runs now, before any slow copying, and stop if that's impossible.
+    for leftover in (folder, old):
+        shutil.rmtree(leftover, ignore_errors=True)
+        if os.path.exists(leftover):
+            raise Skip(f"can't remove leftover {leftover} (a file in it is still open, e.g. by a player "
+                       "or web server); close that and delete it, then re-run")
     os.makedirs(folder)
     try:
         package(path, folder, base, streams, video, audio, len(audios))
+        # Renames work even while the old video is open (being played/served); deleting may not.
+        if os.path.exists(final):
+            os.rename(final, old)
+        os.rename(folder, final)
     except BaseException:
+        if not os.path.exists(final) and os.path.exists(old):
+            os.rename(old, final)
         shutil.rmtree(folder, ignore_errors=True)
         raise
-    shutil.rmtree(final, ignore_errors=True)
-    os.rename(folder, final)
+    shutil.rmtree(old, ignore_errors=True)
+    if os.path.exists(old):
+        print(f"  note: couldn't fully remove {old} (a file in it is still open); delete it later")
     print(f"  done: {final}/")
 
 
@@ -113,8 +162,8 @@ def package(path: str, folder: str, base: str, streams: list[dict], video: dict,
 
     cmd = ["ffmpeg", "-hide_banner", "-v", "warning", "-stats", "-y", "-i", path]
     if ready:
-        print("  video: already browser-ready, copying")
-        shutil.copyfile(path, os.path.join(folder, media))
+        print("  video: already browser-ready")
+        copy_with_progress(path, os.path.join(folder, media))
     else:
         cmd += ["-map", f"0:{video['index']}", "-c:v", "copy"]
         if video["codec_name"] == "hevc":
@@ -128,17 +177,18 @@ def package(path: str, folder: str, base: str, streams: list[dict], video: dict,
             print(f"  audio: {audio['codec_name']} {'copy' if audio_ok else '-> aac 96k stereo'}")
 
     # Embedded subs ride along as extra outputs of the same ffmpeg run, so the file is read once.
-    subs, taken = [], set()
+    found, taken = [], set()  # found: (player entry, .vtt name, where it came from)
     for s in (s for s in streams if s["codec_type"] == "subtitle"):
         if s["codec_name"] not in TEXT_SUBS:
             print(f"  subs: skipping image-based {s['codec_name']} track")
             continue
         name = sub_name(base, lang(s), taken)
         cmd += ["-map", f"0:{s['index']}", "-c:s", "webvtt", os.path.join(folder, name)]
-        subs.append({"src": quote(name), "lang": lang(s), "label": s.get("tags", {}).get("title", "")})
+        found.append(({"src": quote(name), "lang": lang(s), "label": s.get("tags", {}).get("title", "")},
+                      name, f"embedded track {s['index']}"))
         print(f"  subs: {s['codec_name']} -> {name}")
 
-    if not ready or subs:
+    if not ready or found:
         if subprocess.run(cmd).returncode != 0:
             raise Skip("ffmpeg failed")
 
@@ -155,8 +205,15 @@ def package(path: str, folder: str, base: str, streams: list[dict], video: dict,
                            os.path.join(folder, name)]).returncode != 0:
             print(f"  subs: {filename} failed to convert, skipped")
             continue
-        subs.append({"src": quote(name), "lang": code, "label": ""})
+        found.append(({"src": quote(name), "lang": code, "label": ""}, name, filename))
         print(f"  subs: {filename} -> {name}")
+
+    subs = []
+    for entry, name, source in found:
+        if sub_looks_ok(os.path.join(folder, name), source):
+            subs.append(entry)
+        else:
+            os.remove(os.path.join(folder, name))
 
     with open(PLAYER) as f:
         html = f.read()
