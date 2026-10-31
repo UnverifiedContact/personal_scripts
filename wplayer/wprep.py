@@ -116,7 +116,8 @@ def ask_name(default: str) -> str:
     if not sys.stdin.isatty():
         return default
     while True:
-        answer = input(f"  folder name [{default}]: ").strip()
+        print(f"  folder name (Enter keeps: {default})")
+        answer = input("  > ").strip()
         if not answer:
             return default
         if "/" not in answer:
