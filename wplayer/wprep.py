@@ -17,6 +17,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from urllib.parse import quote
 
@@ -134,26 +135,44 @@ def prepare(path: str, out_root: str, name: str | None, force: bool) -> None:
         raise Skip("no video stream")
     video, audio = videos[0], pick_audio(audios)
     check_video(video)
+    if name:
+        check_target(out_root, name, force)
 
-    base = name or ask_name(os.path.splitext(os.path.basename(path))[0])
+    # Everything that can fail or ask a question happens before the name prompt and the slow video step.
+    tmp = tempfile.mkdtemp(prefix="wprep-")
+    try:
+        subs = collect_subs(path, streams, tmp)
+        if not name:
+            name = ask_name(os.path.splitext(os.path.basename(path))[0])
+            check_target(out_root, name, force)
+        build(path, out_root, name, video, audio, len(audios), subs)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def check_target(out_root: str, base: str, force: bool) -> None:
+    """Make sure the package can be written: no clash with an existing folder, no stuck leftovers."""
     final = os.path.join(out_root, base)
     if os.path.exists(final):
         if not force:
             raise Skip(f"{final} exists (use -f to overwrite)")
         if not os.path.isfile(os.path.join(final, "index.html")):
             raise Skip(f"{final} exists and isn't a wprep folder, not touching it")
-    # Build in "PENDING - <name>", then swap it in by renames, so a failed run never leaves a half package.
-    folder = os.path.join(out_root, "PENDING - " + base)
-    old = final + ".old"
-    # Clear leftovers from earlier runs now, before any slow copying, and stop if that's impossible.
-    for leftover in (folder, old):
+    for leftover in (os.path.join(out_root, "PENDING - " + base), final + ".old"):
         shutil.rmtree(leftover, ignore_errors=True)
         if os.path.exists(leftover):
             raise Skip(f"can't remove leftover {leftover} (a file in it is still open, e.g. by a player "
                        "or web server); close that and delete it, then re-run")
+
+
+def build(path: str, out_root: str, base: str, video: dict, audio: dict | None, n_audio: int,
+          subs: list[dict]) -> None:
+    """Build in "PENDING - <name>", then swap it in by renames, so a failed run never leaves a half package."""
+    final = os.path.join(out_root, base)
+    folder, old = os.path.join(out_root, "PENDING - " + base), final + ".old"
     os.makedirs(folder)
     try:
-        package(path, folder, base, streams, video, audio, len(audios))
+        package(path, folder, base, video, audio, n_audio, subs)
         # Renames work even while the old video is open (being played/served); deleting may not.
         if os.path.exists(final):
             os.rename(final, old)
@@ -169,21 +188,20 @@ def prepare(path: str, out_root: str, name: str | None, force: bool) -> None:
     print(f"  done: {final}/")
 
 
-def package(path: str, folder: str, base: str, streams: list[dict], video: dict, audio: dict | None,
-            n_audio: int) -> None:
-    """Write the playable video, subtitles and index.html into folder."""
-    # Subtitles go first, so any "include it anyway?" question comes before the slow video step.
-    found, taken = [], set()  # found: (player entry, .vtt name, where it came from)
+def collect_subs(path: str, streams: list[dict], tmp: str) -> list[dict]:
+    """Convert every usable subtitle track to .vtt in tmp and vet it; return the keepers as
+    {"file", "lang", "label"}."""
+    found = []  # (sub, where it came from)
     cmd = ["ffmpeg", "-hide_banner", "-v", "error", "-stats", "-y", "-i", path]
     for s in (s for s in streams if s["codec_type"] == "subtitle"):
         if s["codec_name"] not in TEXT_SUBS:
             print(f"  subs: skipping image-based {s['codec_name']} track")
             continue
-        name = sub_name(base, lang(s), taken)
-        cmd += ["-map", f"0:{s['index']}", "-c:s", "webvtt", os.path.join(folder, name)]
-        found.append(({"src": quote(name), "lang": lang(s), "label": s.get("tags", {}).get("title", "")},
-                      name, f"embedded track {s['index']}"))
-        print(f"  subs: {s['codec_name']} -> {name}")
+        file = os.path.join(tmp, f"{len(found)}.vtt")
+        cmd += ["-map", f"0:{s['index']}", "-c:s", "webvtt", file]
+        found.append(({"file": file, "lang": lang(s), "label": s.get("tags", {}).get("title", "")},
+                      f"embedded track {s['index']}"))
+        print(f"  subs: found embedded {s['codec_name']} track {s['index']}")
     if found:
         print("  subs: reading through the whole file to extract them...")
         if subprocess.run(cmd).returncode != 0:
@@ -197,20 +215,25 @@ def package(path: str, folder: str, base: str, streams: list[dict], video: dict,
             continue
         code = loose[len(stem):].rsplit(".", 1)[0].strip(".")
         code = code if len(code) <= 3 else ""
-        name = sub_name(base, code, taken)
-        if subprocess.run(["ffmpeg", "-hide_banner", "-v", "error", "-y", "-i", loose,
-                           os.path.join(folder, name)]).returncode != 0:
+        file = os.path.join(tmp, f"{len(found)}.vtt")
+        if subprocess.run(["ffmpeg", "-hide_banner", "-v", "error", "-y", "-i", loose, file]).returncode != 0:
             print(f"  subs: {filename} failed to convert, skipped")
             continue
-        found.append(({"src": quote(name), "lang": code, "label": ""}, name, filename))
-        print(f"  subs: {filename} -> {name}")
+        found.append(({"file": file, "lang": code, "label": ""}, filename))
+        print(f"  subs: found {filename}")
 
-    subs = []
-    for entry, name, source in found:
-        if sub_looks_ok(os.path.join(folder, name), source):
-            subs.append(entry)
-        else:
-            os.remove(os.path.join(folder, name))
+    return [sub for sub, source in found if sub_looks_ok(sub["file"], source)]
+
+
+def package(path: str, folder: str, base: str, video: dict, audio: dict | None, n_audio: int,
+            subs: list[dict]) -> None:
+    """Write the vetted subtitles, the playable video and index.html into folder."""
+    entries, taken = [], set()
+    for sub in subs:
+        name = sub_name(base, sub["lang"], taken)
+        shutil.move(sub["file"], os.path.join(folder, name))
+        entries.append({"src": quote(name), "lang": sub["lang"], "label": sub["label"]})
+        print(f"  subs: -> {name}")
 
     audio_ok = audio is None or audio["codec_name"] in COPY_AUDIO
     media = base + ".mp4"
@@ -235,7 +258,7 @@ def package(path: str, folder: str, base: str, streams: list[dict], video: dict,
     with open(PLAYER) as f:
         html = f.read()
     html = html.replace('const SRC = "";', f"const SRC = {json.dumps(quote(media))};", 1)
-    html = html.replace("const SUBS = [];", "const SUBS = {};".format(json.dumps(subs).replace("</", "<\\/")), 1)
+    html = html.replace("const SUBS = [];", "const SUBS = {};".format(json.dumps(entries).replace("</", "<\\/")), 1)
     with open(os.path.join(folder, "index.html"), "w") as f:
         f.write(html)
 
