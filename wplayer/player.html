@@ -14,7 +14,7 @@
   /* Fill the width; height is the window minus the title, but no taller than 16:9 on narrow screens.
      The video letterboxes inside. */
   video-skin { display: block; width: 100%; height: min(calc(100dvh - 80px), calc((100vw - 32px) * 9 / 16));
-               border-radius: 12px; overflow: hidden; background: #000; }
+               border-radius: 0; --media-border-radius: 0; overflow: hidden; background: #000; }
   #notice { color: #f5b14c; }
   #notice:empty { display: none; }
 </style>
