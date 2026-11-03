@@ -4,6 +4,7 @@ wprep.py - package video files for browser playback with player.html (Video.js).
 
 For each input, creates a self-contained folder <out>/<name>/ (out: -o, $WPLAYER_OUT, or the current dir):
   index.html      player page; serve the folder and share its URL
+  download.php    sends the video as a download (Download in the player's settings menu; needs PHP)
   <name>.mp4      video copied (never re-encoded); audio copied, or AAC 96k stereo if browsers can't play it
   <name>.<lang>.vtt subtitles (embedded text subs + loose name*.srt/.vtt/.ass files next to the input)
 Multiple audio tracks: the English one is used, or the file is skipped.
@@ -27,6 +28,7 @@ TEXT_SUBS = {"subrip", "ass", "ssa", "webvtt", "mov_text", "text"}
 LOOSE_SUBS = (".srt", ".vtt", ".ass", ".ssa")
 MIN_CUES = 50  # fewer subtitle lines than this looks like junk
 PLAYER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "player.html")
+DOWNLOADER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "download.php")
 
 
 class Skip(Exception):
@@ -227,7 +229,7 @@ def collect_subs(path: str, streams: list[dict], tmp: str) -> list[dict]:
 
 def package(path: str, folder: str, base: str, video: dict, audio: dict | None, n_audio: int,
             subs: list[dict]) -> None:
-    """Write the vetted subtitles, the playable video and index.html into folder."""
+    """Write the vetted subtitles, the playable video, index.html and download.php into folder."""
     entries, taken = [], set()
     for sub in subs:
         name = sub_name(base, sub["lang"], taken)
@@ -258,9 +260,11 @@ def package(path: str, folder: str, base: str, video: dict, audio: dict | None, 
     with open(PLAYER) as f:
         html = f.read()
     html = html.replace('const SRC = "";', f"const SRC = {json.dumps(quote(media))};", 1)
+    html = html.replace("const SIZE = 0;", f"const SIZE = {os.path.getsize(os.path.join(folder, media))};", 1)
     html = html.replace("const SUBS = [];", "const SUBS = {};".format(json.dumps(entries).replace("</", "<\\/")), 1)
     with open(os.path.join(folder, "index.html"), "w") as f:
         f.write(html)
+    shutil.copy(DOWNLOADER, os.path.join(folder, "download.php"))
 
 
 def main() -> None:

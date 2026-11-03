@@ -33,6 +33,7 @@
 // What to play (wprep.py fills these in). ?src=URL in the page address overrides SRC.
 const SRC = "";
 const SUBS = [];  // [{src: "film.en.vtt", lang: "en", label: ""}]
+const SIZE = 0;   // video file size in bytes, shown on the Download menu item
 
 const video = document.getElementById("video");
 const src = new URLSearchParams(location.search).get("src") || SRC;
@@ -53,12 +54,37 @@ video.src = src;
 document.title = document.getElementById("title").textContent =
   decodeURIComponent(src.split("/").pop()).replace(/\.[^.]+$/, "");
 
-// The skin darkens the video while the controls show; switch that gradient off.
-// It lives in the skin's shadow DOM, so page CSS can't reach it.
+// Tweaks inside the skin's shadow DOM, which page CSS can't reach.
 customElements.whenDefined("video-skin").then(() => {
+  const root = document.querySelector("video-skin").shadowRoot;
+  if (!root) return;
+
+  // The skin darkens the video while the controls show; switch that gradient off.
   const style = document.createElement("style");
   style.textContent = ".video-controls-backdrop { display: none !important; }";
-  document.querySelector("video-skin").shadowRoot?.append(style);
+  root.append(style);
+
+  // Add "Download" to the bottom of the settings (gear) menu. The skin has no API for this, so it
+  // relies on the menu's markup in this exact Video.js version. wprep.py folders have download.php,
+  // which makes the browser save the video instead of playing it; a ?src= video elsewhere gets a
+  // plain link, which the browser may just play.
+  const menu = root.querySelector("media-menu > media-menu-content");
+  if (!menu) return;
+  const size = src !== SRC || !SIZE ? "" : SIZE >= 2 ** 30 ? (SIZE / 2 ** 30).toFixed(1) + " GB"
+    : Math.max(1, Math.round(SIZE / 2 ** 20)) + " MB";
+  const item = document.createElement("media-menu-item");
+  item.className = "media-menu-trigger-item";
+  item.innerHTML = `<svg class="media-menu-trigger-item-icon" viewBox="0 0 16 16" aria-hidden="true"><path
+    d="M8 2v8M4.5 6.5 8 10l3.5-3.5M3 13.5h10" fill="none" stroke="currentColor" stroke-width="1.6"
+    stroke-linecap="round" stroke-linejoin="round"/></svg><span>Download</span>
+    <span class="media-menu-hint"><span class="media-menu-hint-label">${size}</span></span>`;
+  item.addEventListener("click", () => {
+    const a = document.createElement("a");
+    if (src === SRC) a.href = "download.php";
+    else Object.assign(a, { href: src, download: decodeURIComponent(src.split("/").pop()) });
+    a.click();
+  });
+  menu.append(item);
 });
 
 // A browser that can't decode the video (usually HEVC) plays the audio over black instead of erroring.
